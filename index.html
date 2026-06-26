@@ -179,7 +179,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     </div>
   </div>
 
-  <div id="t-pol" class="hidden"><div class="panel"><div class="hh"><h2>Listado de pólizas</h2><button class="btn" id="addPol">+ Nueva póliza</button></div>
+  <div id="t-pol" class="hidden"><div class="panel"><div class="hh"><h2>Listado de pólizas <span class="muted" id="penCnt" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><select id="fenv" class="mini"><option value="">Envío: todas</option><option value="pend">Pendientes de enviar</option><option value="env">Enviadas</option></select><button class="btn" id="addPol">+ Nueva póliza</button></div></div>
     <div class="scroll"><table id="tp"><thead></thead><tbody></tbody></table></div></div></div>
 
   <div id="t-sin" class="hidden"><div class="panel">
@@ -314,7 +314,7 @@ async function loadData(){
       if(!cli && !comp && !nro) return;
       if(cli && !cmap[cli]) cmap[cli]={id:cli,ape:cli,nom:'',doc:doc,tipo:'',tel:tel,email:email,dir:dir,loc:loc,nac:cumple,est:'activo'};
       const ven=isoG(b.FINDEVIGENCIA);
-      P.push({idc:cli,cli:cli,doc:doc,tipo:'',comp:comp,codigo:String(b.CODIGO||'').trim(),ramo:String(b.SECCION||'').trim(),periodo:String(b.PERIODO||''),nro:nro,ini:isoG(b.INCIOVIGENCIA),ven:ven,pa:num(b.PREMIO),pm:num(b.CUOTAMENSUAL),est:(ven&&ven<_tiso?'vencida':'vigente'),estRaw:String(b.ABIERTOOCERRADO||''),pat:'',obs:String(b.DESCRIPCION||''),tel:tel,email:email,dir:dir,loc:loc});
+      P.push({idc:cli,cli:cli,doc:doc,tipo:'',comp:comp,codigo:String(b.CODIGO||'').trim(),ramo:String(b.SECCION||'').trim(),periodo:String(b.PERIODO||''),nro:nro,ini:isoG(b.INCIOVIGENCIA),ven:ven,pa:num(b.PREMIO),pm:num(b.CUOTAMENSUAL),est:(ven&&ven<_tiso?'vencida':'vigente'),estRaw:String(b.ABIERTOOCERRADO||''),pat:'',obs:String(b.DESCRIPCION||''),tel:tel,email:email,dir:dir,loc:loc,enviada:String(b.ENVIADA||'').trim().toUpperCase(),fenvio:isoG(b.FECHAENVIO)});
     });
     const C=Object.values(cmap);
     const S=si.filter(s=>String(s.ASEGURADO||s.POLIZA||'').trim()!=='').map((s,i)=>{const est=String(s.ESTADO||'').trim().toLowerCase();return {id:'S'+(i+1),fecha:isoG(s.FECHASINIESTRO),nro:s.NSINIESTRO!=null?String(s.NSINIESTRO):'',pol:s.POLIZA!=null?String(s.POLIZA):'',pat:s.PATENTE||'',cli:String(s.ASEGURADO||''),idc:String(s.ASEGURADO||''),comp:String(s.COMPANIA||'').toUpperCase(),tipo:s.TIPO||'',denuncia:isoG(s.FECHADEDENUNCIA),est:est||'sin estado',estRaw:String(s.ESTADO||''),abierto:!/termin/.test(est),obs:String(s.OBSERVACIONES||'')};});
@@ -425,8 +425,13 @@ function render(){
     <td class="num">${c.prox==null?'<span class="muted">—</span>':c.prox+'d'}</td>
     <td>${c.vig>0?'<span class="badge b-g">activo</span>':'<span class="badge b-r">inactivo</span>'}</td></tr>`;}).join('')||'<tr><td colspan="7" class="muted" style="padding:20px;text-align:center">Sin resultados</td></tr>';
 
-  setHead('tp',['Cliente','Cód.','Compañía','Ramo','Nº','Inicio','Vence','Estado','Premio','Cuota x mes','Descripción'],['','','','','','','','','num','num','wrap-c']);
-  body('tp',rows,p=>`<tr class="clk" data-nro="${(p.nro||'').toString().replace(/"/g,'')}"><td>${clientName(p.idc)||'—'}</td><td>${p.codigo||'—'}</td><td>${p.comp}</td><td><span class="tag">${p.ramo}</span></td><td>${p.nro||'—'}</td><td>${dmy(p.ini)}</td><td>${dmy(p.ven)}</td><td>${p.est}</td><td class="num">${fmt(p.pa)}</td><td class="num">${fmt(p.pm)}</td><td class="wrap-c">${p.obs||'<span class="muted">—</span>'}</td></tr>`);
+  const _fenv=(document.getElementById('fenv')||{}).value||'';
+  let _tprows=rows;
+  if(_fenv==='pend')_tprows=rows.filter(p=>p.enviada!=='SI');
+  else if(_fenv==='env')_tprows=rows.filter(p=>p.enviada==='SI');
+  const _pe=document.getElementById('penCnt'); if(_pe)_pe.textContent='· '+rows.filter(p=>p.enviada!=='SI').length+' pendientes de enviar';
+  setHead('tp',['Cliente','Cód.','Compañía','Ramo','Nº','Inicio','Vence','Estado','Premio','Cuota x mes','Descripción','Envío'],['','','','','','','','','num','num','wrap-c','']);
+  body('tp',_tprows,p=>`<tr class="clk" data-nro="${(p.nro||'').toString().replace(/"/g,'')}"><td>${clientName(p.idc)||'—'}</td><td>${p.codigo||'—'}</td><td>${p.comp}</td><td><span class="tag">${p.ramo}</span></td><td>${p.nro||'—'}</td><td>${dmy(p.ini)}</td><td>${dmy(p.ven)}</td><td>${p.est}</td><td class="num">${fmt(p.pa)}</td><td class="num">${fmt(p.pm)}</td><td class="wrap-c">${p.obs||'<span class="muted">—</span>'}</td><td>${p.enviada==='SI'?('<span class="badge b-g">✓ Enviada'+(p.fenvio?' · '+dmy(p.fenvio):'')+'</span> <a class="env-undo" data-undonro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="font-size:10px;color:#8aa1b8;cursor:pointer;text-decoration:underline">deshacer</a>'):('<button class="btn env-btn" data-envnro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="padding:3px 9px;font-size:11px">Marcar enviada</button>')}</td></tr>`);
 
   const ts=filteredSin().map(s=>({...s,dd:diasDesde(s.fecha)})).sort((a,b)=>(b.abierto-a.abierto)||((b.dd||0)-(a.dd||0)));
   setHead('ts',['','Asegurado','Compañía','Tipo','Nº Siniestro','Póliza','Patente','Fecha','Días','Estado','Observaciones'],['','','','','','','','','num','','wrap-c']);
@@ -692,12 +697,28 @@ function closePol(){const ov=document.getElementById('polOverlay');ov.style.disp
 document.getElementById('polClose').addEventListener('click',closePol);
 document.getElementById('polCancel').addEventListener('click',closePol);
 document.getElementById('addPol').addEventListener('click',()=>openPol('add',null));
-document.getElementById('tp').addEventListener('click',e=>{const tr=e.target.closest('tr[data-nro]');if(!tr)return;const p=POL.find(x=>String(x.nro)===String(tr.dataset.nro));if(p)openPol('edit',p);});
+document.async function _markEnviada(nro,on,btn){
+  const p=POL.find(x=>String(x.nro)===String(nro)); if(!p)return;
+  const t=new Date(); const fch=String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
+  if(btn){btn.textContent='…'; btn.disabled=true;}
+  if(!BK_OK){await bk({action:'ping'});}
+  const fields=on?{'Enviada':'SI','Fecha envio':fch}:{'Enviada':'','Fecha envio':''};
+  const r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:nro,fields:JSON.stringify(fields)});
+  if(r&&r.ok){ p.enviada=on?'SI':''; p.fenvio=on?t.toISOString().slice(0,10):''; render(); }
+  else { if(btn){btn.disabled=false; btn.textContent=on?'Marcar enviada':'deshacer';} alert('No se pudo actualizar el envío ('+((r&&r.error)||'sin conexión')+').'); }
+}
+document.getElementById('tp').addEventListener('click',async e=>{
+  const eb=e.target.closest('[data-envnro]'); if(eb){await _markEnviada(eb.dataset.envnro,true,eb);return;}
+  const ub=e.target.closest('[data-undonro]'); if(ub){await _markEnviada(ub.dataset.undonro,false,ub);return;}
+  const tr=e.target.closest('tr[data-nro]');if(!tr)return;const p=POL.find(x=>String(x.nro)===String(tr.dataset.nro));if(p)openPol('edit',p);
+});
+var _fenvEl=document.getElementById('fenv'); if(_fenvEl)_fenvEl.addEventListener('change',render);
 document.getElementById('polSave').addEventListener('click',async ()=>{
   const f={};document.querySelectorAll('#polForm [data-pf]').forEach(el=>{f[el.dataset.pf]=el.value;});
   ['Incio vigencia','Fin de Vigencia'].forEach(k=>{const mm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f[k]||''));if(mm)f[k]=mm[3]+'/'+mm[2]+'/'+mm[1];});
   ['Premio','Cuota mensual'].forEach(k=>{const n=num(f[k]);f[k]=(n==null?'':n);});
   ['Asegurado','Cuit o Dni','Compañia','Seccion','Poliza','Descripcion'].forEach(k=>{if(typeof f[k]==='string')f[k]=f[k].trim();});
+  f['Enviada']='';
   const msg=document.getElementById('polMsg');
   if(!f.Poliza){msg.innerHTML='<span style="color:#ff8585">Falta el Nº de póliza.</span>';return;}
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
@@ -706,7 +727,7 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   if(polMode==='add') r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)});
   else r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:polOrigNro,fields:JSON.stringify(f)});
   if(r&&r.ok){
-    const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
+    const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:'',enviada:'',fenvio:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
     if(o.idc&&!CLI[o.idc])CLI[o.idc]={id:o.idc,ape:o.idc,nom:'',doc:o.doc,tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
     if(polMode==='add'){POL.push(o);}else{const i=POL.findIndex(x=>String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
     msg.innerHTML='<span class="saved">✓ Guardado en el sheet</span>';
