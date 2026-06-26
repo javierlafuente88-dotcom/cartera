@@ -592,12 +592,14 @@ function _cmpPick(){const d=_cur();const ch=document.getElementById('cmpActual')
 }
 function _renderCmp(){
   const arr=DATA.comparativas||[]; const el=document.getElementById('cmpCnt'); if(el)el.textContent='· '+arr.length;
-  setHead('tcmp',['Fecha','Asegurado','Póliza','Compañía cot.','Período','Tipo','Premio ant.','Premio cot.','Δ Premio','Cuota ant.','Cuota cot.','Δ Cuota'],['','','','','','','num','num','num','num','num','num']);
+  setHead('tcmp',['Fecha','Asegurado','Póliza','Compañía cot.','Período','Tipo','Premio ant.','Premio cot.','Δ Premio','Cuota ant.','Cuota cot.','Δ Cuota',''],['','','','','','','num','num','num','num','num','num','']);
+  const _a=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  const _fch=v=>{const m=/Date\((\d+),(\d+),(\d+)/.exec(String(v||''));return m?String(+m[3]).padStart(2,'0')+'/'+String(+m[2]+1).padStart(2,'0')+'/'+m[1]:(v||'—');};
   body('tcmp',arr.slice().reverse(),o=>{
     const pm=num(o.PREMIODIFMONTO), cm=num(o.CUOTADIFMONTO);
     const dP=(o.PREMIODIFMONTO!==''&&o.PREMIODIFMONTO!=null)?((pm>0?'▲ ':(pm<0?'▼ ':''))+fmt(Math.abs(pm||0))+(o.PREMIODIFPCT!==''&&o.PREMIODIFPCT!=null?' ('+o.PREMIODIFPCT+'%)':'')):'—';
     const dC=(o.CUOTADIFMONTO!==''&&o.CUOTADIFMONTO!=null)?((cm>0?'▲ ':(cm<0?'▼ ':''))+fmt(Math.abs(cm||0))+(o.CUOTADIFPCT!==''&&o.CUOTADIFPCT!=null?' ('+o.CUOTADIFPCT+'%)':'')):'—';
-    return '<tr><td>'+(o.FECHA||'—')+'</td><td>'+(o.ASEGURADO||'—')+'</td><td>'+(o.POLIZA||'—')+'</td><td>'+(o.COMPANIA||'—')+'</td><td>'+(o.PERIODO||'—')+'</td><td>'+(o.TIPO||'—')+'</td><td class="num">'+fmt(num(o.PREMIOANTERIOR))+'</td><td class="num">'+fmt(num(o.PREMIONUEVO))+'</td><td class="num">'+dP+'</td><td class="num">'+fmt(num(o.CUOTAANTERIOR))+'</td><td class="num">'+fmt(num(o.CUOTANUEVA))+'</td><td class="num">'+dC+'</td></tr>';
+    return '<tr><td>'+_fch(o.FECHA)+'</td><td>'+(o.ASEGURADO||'—')+'</td><td>'+(o.POLIZA||'—')+'</td><td>'+(o.COMPANIA||'—')+'</td><td>'+(o.PERIODO||'—')+'</td><td>'+(o.TIPO||'—')+'</td><td class="num">'+fmt(num(o.PREMIOANTERIOR))+'</td><td class="num">'+fmt(num(o.PREMIONUEVO))+'</td><td class="num">'+dP+'</td><td class="num">'+fmt(num(o.CUOTAANTERIOR))+'</td><td class="num">'+fmt(num(o.CUOTANUEVA))+'</td><td class="num">'+dC+'</td><td><button class="btn ghost cmpdel" title="Borrar comparativa" data-aseg="'+_a(o.ASEGURADO)+'" data-pol="'+_a(o.POLIZA)+'" data-comp="'+_a(o.COMPANIA)+'" data-pa="'+_a(o.PREMIOANTERIOR)+'" data-pn="'+_a(o.PREMIONUEVO)+'" data-ca="'+_a(o.CUOTAANTERIOR)+'" data-cn="'+_a(o.CUOTANUEVA)+'" style="padding:3px 9px">🗑</button></td></tr>';
   });
 }
 document.getElementById('cmpAseg').addEventListener('change',_cmpAsegPols);
@@ -606,6 +608,22 @@ document.getElementById('cmpAddQ').addEventListener('click',()=>{_cmpQuotes.push
 document.getElementById('cmpQuotes').addEventListener('input',e=>{const t=e.target;if(!t.dataset||t.dataset.i==null)return;const i=+t.dataset.i;if(!_cmpQuotes[i])return;_cmpQuotes[i][t.dataset.q]=t.value;_cmpRowDelta(i);_cmpSummary();});
 document.getElementById('cmpQuotes').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;const i=+b.dataset.del;_cmpQuotes.splice(i,1);if(!_cmpQuotes.length)_cmpQuotes=[{comp:'',premio:'',cuota:''}];_cmpRenderQuotes();});
 _cmpRenderQuotes();
+document.getElementById('tcmp').addEventListener('click',async e=>{
+  const b=e.target.closest('.cmpdel'); if(!b)return;
+  if(!confirm('¿Borrar esta comparativa de la planilla? Esta acción no se puede deshacer.'))return;
+  const d=b.dataset;
+  const match={'Asegurado':d.aseg,'Poliza':d.pol,'Compania':d.comp,'Premio anterior':d.pa,'Premio nuevo':d.pn,'Cuota anterior':d.ca,'Cuota nueva':d.cn};
+  Object.keys(match).forEach(k=>{if(match[k]===''||match[k]==null)delete match[k];});
+  const old=b.textContent; b.textContent='…'; b.disabled=true;
+  if(!BK_OK){await bk({action:'ping'});}
+  const r=await bk({action:'deleteMatch',sheet:'Comparativas',match:JSON.stringify(match)});
+  if(r&&r.ok){
+    const arr=DATA.comparativas||[];
+    const idx=arr.findIndex(o=>String(o.ASEGURADO==null?'':o.ASEGURADO)===String(d.aseg||'')&&String(o.POLIZA==null?'':o.POLIZA)===String(d.pol||'')&&String(o.COMPANIA==null?'':o.COMPANIA)===String(d.comp||'')&&String(o.PREMIONUEVO==null?'':o.PREMIONUEVO)===String(d.pn||'')&&String(o.CUOTANUEVA==null?'':o.CUOTANUEVA)===String(d.cn||''));
+    if(idx>=0)arr.splice(idx,1);
+    _renderCmp();
+  }else{ b.textContent=old; b.disabled=false; alert('No se pudo borrar: '+((r&&r.error)||'sin conexión')+'. Si recién agregaste la acción al Apps Script, reimplementá la versión.'); }
+});
 document.getElementById('cmpSave').addEventListener('click',async ()=>{
   const aseg=(document.getElementById('cmpAseg').value||'').trim();
   const nro=document.getElementById('cmpPol').value; const d=_cmpPolMap[nro]||{};
