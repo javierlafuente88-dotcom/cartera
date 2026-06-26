@@ -319,7 +319,7 @@ async function loadData(){
     const A=art.filter(a=>String(a.ASEGURADO||'').trim()!=='').map((a,_ix)=>({_i:_ix,comp:String(a.COMPANIA||'').toUpperCase(),codigo:String(a['CODIGODEPRODUCTOR69743']||'').trim(),cli:String(a.ASEGURADO||''),doc:a.CUITODNI!=null?String(a.CUITODNI):'',sec:String(a.SECCION||'').trim(),contador:String(a.CONTADOR||''),inicio:artMes(a.INICIODEVIGENCIA),iniso:isoG(a.INICIODEVIGENCIA),capitas:a.CAPITAS!=null?String(a.CAPITAS):'',alic:a.ALICUOTA!=null?String(a.ALICUOTA):'',aumento:a.AUMENTO!=null?String(a.AUMENTO):'',mes:String(a.MES||''),deuda:a.DEUDA!=null?String(a.DEUDA):'',scvo:String(a.SCVO||''),contacto:String(a.CONTACTO||''),bajaC:String(a.BAJA||''),recotizar:String(a.RECOTIZAR||'')}));
     const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map(r=>({comp:String(r.COMPANIA||'').toUpperCase(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
     DATA={polizas:P,clientes:C,siniestros:S,art:A,retiro:R,contactos:_contactos};
-    try{ const cm=await gviz('COMPARATIVAS'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm:[]; }catch(e){ DATA.comparativas=[]; }
+    try{ const cm=await gviz('Comparativas'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm:[]; }catch(e){ DATA.comparativas=[]; }
     var lm=document.getElementById('loadmsg'); if(lm) lm.remove();
     boot();
   }catch(e){
@@ -587,10 +587,10 @@ document.getElementById('cmpSave').addEventListener('click',async ()=>{
   const row={'Asegurado':aseg,'Poliza':nro,'Tipo':tipo,'Premio anterior':(d.pa!=null?d.pa:''),'Premio nuevo':(pn!=null?pn:''),'Premio dif monto':pdm,'Premio dif pct':pdp,'Cuota anterior':(d.pm!=null?d.pm:''),'Cuota nueva':(cn!=null?cn:''),'Cuota dif monto':cdm,'Cuota dif pct':cdp,'Fecha':fch};
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
   msg.innerHTML='Guardando…';
-  const r=await bk({action:'append',sheet:'COMPARATIVAS',row:JSON.stringify(row)});
+  const r=await bk({action:'append',sheet:'Comparativas',row:JSON.stringify(row)});
   if(r&&r.ok){
     (DATA.comparativas=DATA.comparativas||[]).push({ASEGURADO:aseg,POLIZA:nro,TIPO:tipo,PREMIOANTERIOR:d.pa,PREMIONUEVO:pn,PREMIODIFMONTO:pdm,PREMIODIFPCT:pdp,CUOTAANTERIOR:d.pm,CUOTANUEVA:cn,CUOTADIFMONTO:cdm,CUOTADIFPCT:cdp,FECHA:fch});
-    msg.innerHTML='<span class="saved">✓ Guardada en COMPARATIVAS</span>'; _renderCmp();
+    msg.innerHTML='<span class="saved">✓ Guardada en Comparativas</span>'; _renderCmp();
     document.getElementById('cmpPremio').value=''; document.getElementById('cmpCuota').value=''; _cmpCalc();
   }else{ msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((r&&r.error)||'sin conexión')+').</span>'; }
 });
