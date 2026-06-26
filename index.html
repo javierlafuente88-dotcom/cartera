@@ -237,6 +237,15 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
   </div>
 </div>
 
+<div id="artOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 12px;display:none">
+  <div style="background:#171d2b;border:1px solid #2a3346;border-radius:14px;max-width:680px;width:100%;padding:18px;box-shadow:0 14px 50px rgba(0,0,0,.5)">
+    <div class="hh"><h2 id="artTitle" style="margin:0">Editar ART</h2><button class="btn ghost" id="artClose">✕ Cerrar</button></div>
+    <div class="form" id="artForm" style="margin-top:8px"></div>
+    <div id="artMsg" style="margin-top:10px;font-size:13px;min-height:16px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="artSave">Guardar en el sheet</button><button class="btn sec" id="artCancel">Cancelar</button></div>
+  </div>
+</div>
+
 <div id="sinOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 12px;display:none">
   <div style="background:#171d2b;border:1px solid #2a3346;border-radius:14px;max-width:680px;width:100%;padding:18px;box-shadow:0 14px 50px rgba(0,0,0,.5)">
     <div class="hh"><h2 id="sinTitle" style="margin:0">Editar siniestro</h2><button class="btn ghost" id="sinClose">✕ Cerrar</button></div>
@@ -287,7 +296,7 @@ var RAMO={'AUTOMOTOR':'automotor','AUTOMOTOR FLOTA':'automotor','MOTO':'automoto
 function mapRamo(r){var k=String(r||'').trim().toUpperCase();return RAMO[k]||'otros';}
 async function loadData(){
   try{
-    const [bs,si,art,ret]=await Promise.all([gviz('CARTERA COMPLETA'),gviz('SINIESTROS'),gviz('ART ').catch(()=>[]),gviz('retiro').catch(()=>[])]);
+    const [bs,si,art,ret]=await Promise.all([gviz('CARTERA COMPLETA'),gviz('SINIESTROS'),gviz('ART').catch(()=>[]),gviz('retiro').catch(()=>[])]);
     const cmap={};
     const P=[];
     let _contactos={};
@@ -307,7 +316,7 @@ async function loadData(){
     });
     const C=Object.values(cmap);
     const S=si.filter(s=>String(s.ASEGURADO||s.POLIZA||'').trim()!=='').map((s,i)=>{const est=String(s.ESTADO||'').trim().toLowerCase();return {id:'S'+(i+1),fecha:isoG(s.FECHASINIESTRO),nro:s.NSINIESTRO!=null?String(s.NSINIESTRO):'',pol:s.POLIZA!=null?String(s.POLIZA):'',pat:s.PATENTE||'',cli:String(s.ASEGURADO||''),idc:String(s.ASEGURADO||''),comp:String(s.COMPANIA||'').toUpperCase(),tipo:s.TIPO||'',denuncia:isoG(s.FECHADEDENUNCIA),est:est||'sin estado',estRaw:String(s.ESTADO||''),abierto:!/termin/.test(est),obs:String(s.OBSERVACIONES||'')};});
-    const A=art.filter(a=>String(a.ASEGURADO||'').trim()!=='').map(a=>({comp:String(a.COMPANIA||'').toUpperCase(),cli:String(a.ASEGURADO||''),doc:a.CUITODNI!=null?String(a.CUITODNI):'',sec:String(a.SECCION||'').trim(),contador:String(a.CONTADOR||''),inicio:artMes(a.INICIODEVIGENCIA),capitas:a.CAPITAS!=null?String(a.CAPITAS):'',alic:a.ALICUOTA!=null?String(a.ALICUOTA):'',deuda:a.DEUDA!=null?String(a.DEUDA):'',scvo:String(a.SCVO||'')}));
+    const A=art.filter(a=>String(a.ASEGURADO||'').trim()!=='').map((a,_ix)=>({_i:_ix,comp:String(a.COMPANIA||'').toUpperCase(),codigo:String(a['CODIGODEPRODUCTOR69743']||'').trim(),cli:String(a.ASEGURADO||''),doc:a.CUITODNI!=null?String(a.CUITODNI):'',sec:String(a.SECCION||'').trim(),contador:String(a.CONTADOR||''),inicio:artMes(a.INICIODEVIGENCIA),iniso:isoG(a.INICIODEVIGENCIA),capitas:a.CAPITAS!=null?String(a.CAPITAS):'',alic:a.ALICUOTA!=null?String(a.ALICUOTA):'',aumento:a.AUMENTO!=null?String(a.AUMENTO):'',mes:String(a.MES||''),deuda:a.DEUDA!=null?String(a.DEUDA):'',scvo:String(a.SCVO||''),contacto:String(a.CONTACTO||''),bajaC:String(a.BAJA||''),recotizar:String(a.RECOTIZAR||'')}));
     const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map(r=>({comp:String(r.COMPANIA||'').toUpperCase(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
     DATA={polizas:P,clientes:C,siniestros:S,art:A,retiro:R,contactos:_contactos};
     try{ const cm=await gviz('COMPARATIVAS'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm:[]; }catch(e){ DATA.comparativas=[]; }
@@ -429,8 +438,8 @@ function render(){
   else if(artF==='baja') AR=AR.filter(a=>/baja/i.test(a.sec));
   if(F.q){const _q=F.q.toLowerCase();AR=AR.filter(a=>((a.cli+' '+a.doc+' '+a.sec+' '+a.contador).toLowerCase().includes(_q)));}
   const _ae=document.getElementById('artCnt'); if(_ae)_ae.textContent='· '+AR.length+' contratos';
-  setHead('tart',['Asegurado','Compañía','CUIT/DNI','Sección','Cápitas','Alícuota','Inicio','Deuda','Contador'],['','','','','num','','','','']);
-  body('tart',AR,a=>`<tr><td>${a.cli||'—'}</td><td>${a.comp||'—'}</td><td>${a.doc||'—'}</td><td>${a.sec||'—'}</td><td class="num">${a.capitas||'—'}</td><td>${a.alic||'—'}</td><td>${a.inicio||'—'}</td><td>${a.deuda||'<span class="muted">—</span>'}</td><td>${a.contador||'<span class="muted">—</span>'}</td></tr>`);
+  setHead('tart',['Asegurado','Compañía','Cód.','CUIT/DNI','Sección','Cápitas','Alícuota','Inicio','Deuda','Contador'],['','','','','','num','','','','']);
+  body('tart',AR,a=>`<tr class="clk" data-aix="${a._i}"><td>${a.cli||'—'}</td><td>${a.comp||'—'}</td><td>${a.codigo||'<span class="muted">—</span>'}</td><td>${a.doc||'—'}</td><td>${a.sec||'—'}</td><td class="num">${a.capitas||'—'}</td><td>${a.alic||'—'}</td><td>${a.inicio||'—'}</td><td>${a.deuda||'<span class="muted">—</span>'}</td><td>${a.contador||'<span class="muted">—</span>'}</td></tr>`);
   // Retiro
   let RE=(DATA.retiro||[]);
   if(F.q){const _q=F.q.toLowerCase();RE=RE.filter(r=>((r.cli+' '+r.doc+' '+r.plan+' '+r.nro).toLowerCase().includes(_q)));}
@@ -708,6 +717,75 @@ document.getElementById('sinSave').addEventListener('click',async ()=>{
     msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((r&&r.error)||'sin conexión')+'). Revisá el punto de conexión.</span>';
   }
 });
+// ===== ART edicion completa =====
+const ARTFIELDS=[
+ {k:'Asegurado',l:'Asegurado / Razon social',t:'list',list:'dlAsegA'},
+ {k:'CUIT O DNI',l:'CUIT / DNI',t:'text'},
+ {k:'COMPAÑIA',l:'Compañía',t:'list',list:'dlCompA'},
+ {k:'Codigo de productor 69743',l:'Código (JL/MF)',t:'select',opts:['','JL','MF']},
+ {k:'Seccion',l:'Sección',t:'text'},
+ {k:'CONTADOR',l:'Contador',t:'text'},
+ {k:'Inicio de vigencia',l:'Inicio de vigencia',t:'date'},
+ {k:'CAPITAS',l:'Cápitas',t:'num'},
+ {k:'ALICUOTA',l:'Alícuota',t:'num'},
+ {k:'aumento',l:'Aumento',t:'num'},
+ {k:'mes',l:'Mes',t:'text'},
+ {k:'deuda',l:'Deuda',t:'num'},
+ {k:'SCVO',l:'SCVO',t:'text'},
+ {k:'contacto',l:'Contacto',t:'text'},
+ {k:'baja',l:'Baja',t:'text'},
+ {k:'recotizar',l:'Recotizar',t:'text'}
+];
+let artOrigDoc='', artOrigName='', artOrigI=-1;
+function openArt(a){
+  artOrigDoc=a.doc||''; artOrigName=a.cli||''; artOrigI=(a._i!=null?a._i:-1);
+  const v={'Asegurado':a.cli||'','CUIT O DNI':a.doc||'','COMPAÑIA':a.comp||'','Codigo de productor 69743':a.codigo||'','Seccion':a.sec||'','CONTADOR':a.contador||'','Inicio de vigencia':a.iniso||'','CAPITAS':a.capitas||'','ALICUOTA':a.alic||'','aumento':a.aumento||'','mes':a.mes||'','deuda':a.deuda||'','SCVO':a.scvo||'','contacto':a.contacto||'','baja':a.bajaC||'','recotizar':a.recotizar||''};
+  document.getElementById('artTitle').textContent='Editar ART — '+(a.cli||'');
+  let html='';
+  ARTFIELDS.forEach(fl=>{
+    const val=String(v[fl.k]==null?'':v[fl.k]).replace(/"/g,'&quot;');
+    let inp;
+    if(fl.t==='select'){inp='<select data-af="'+fl.k+'">'+fl.opts.map(o=>'<option'+(String(o)===String(v[fl.k]||'')?' selected':'')+'>'+o+'</option>').join('')+'</select>';}
+    else if(fl.t==='date'){inp='<input type="date" data-af="'+fl.k+'" value="'+val+'">';}
+    else if(fl.t==='list'){inp='<input data-af="'+fl.k+'" list="'+fl.list+'" autocomplete="off" value="'+val+'">';}
+    else{inp='<input data-af="'+fl.k+'" value="'+val+'">';}
+    html+='<div><label>'+fl.l+'</label>'+inp+'</div>';
+  });
+  const asegA=[...new Set([...POL.map(x=>x.cli),...(DATA.art||[]).map(x=>x.cli)].filter(Boolean))].sort();
+  const compA=[...new Set([...POL.map(x=>x.comp),...(DATA.art||[]).map(x=>x.comp)].filter(Boolean))].sort();
+  html+=_dl('dlAsegA',asegA)+_dl('dlCompA',compA);
+  document.getElementById('artForm').innerHTML=html;
+  document.getElementById('artMsg').textContent='';
+  const ov=document.getElementById('artOverlay');ov.classList.remove('hidden');ov.style.display='flex';
+}
+function closeArt(){const ov=document.getElementById('artOverlay');ov.style.display='none';ov.classList.add('hidden');}
+document.getElementById('artClose').addEventListener('click',closeArt);
+document.getElementById('artCancel').addEventListener('click',closeArt);
+document.getElementById('tart').addEventListener('click',e=>{const tr=e.target.closest('tr[data-aix]');if(!tr)return;const a=(DATA.art||[]).find(x=>String(x._i)===tr.dataset.aix);if(a)openArt(a);});
+document.getElementById('artSave').addEventListener('click',async ()=>{
+  const f={};document.querySelectorAll('#artForm [data-af]').forEach(el=>{f[el.dataset.af]=el.value;});
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f['Inicio de vigencia']||''));if(m)f['Inicio de vigencia']=m[3]+'/'+m[2]+'/'+m[1];
+  ['CAPITAS','ALICUOTA','aumento','deuda'].forEach(k=>{const raw=String(f[k]==null?'':f[k]).trim();if(raw===''){f[k]='';return;}if(!/^[\d.,$%\s-]+$/.test(raw))return;const n=num(raw);if(n!=null)f[k]=n;});
+  Object.keys(f).forEach(k=>{if(typeof f[k]==='string')f[k]=f[k].trim();});
+  const msg=document.getElementById('artMsg');
+  const kc=artOrigDoc?'CUIT O DNI':'Asegurado';
+  const kv=artOrigDoc||artOrigName;
+  if(!kv){msg.innerHTML='<span style="color:#ff8585">No puedo identificar esta fila (sin CUIT ni asegurado).</span>';return;}
+  if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
+  msg.innerHTML='Guardando en el sheet…';
+  const r=await bk({action:'update',sheet:'ART',keyCol:kc,keyVal:kv,fields:JSON.stringify(f)});
+  if(r&&r.ok){
+    const a=(DATA.art||[]).find(x=>x._i===artOrigI);
+    if(a){a.cli=f['Asegurado'];a.doc=String(f['CUIT O DNI']||'');a.comp=String(f['COMPAÑIA']||'').toUpperCase();a.codigo=String(f['Codigo de productor 69743']||'');a.sec=String(f['Seccion']||'');a.contador=String(f['CONTADOR']||'');a.iniso=isoG2(f['Inicio de vigencia']);a.inicio=_artMesIso(a.iniso);a.capitas=String(f['CAPITAS']==null?'':f['CAPITAS']);a.alic=String(f['ALICUOTA']==null?'':f['ALICUOTA']);a.aumento=String(f['aumento']==null?'':f['aumento']);a.mes=String(f['mes']||'');a.deuda=String(f['deuda']==null?'':f['deuda']);a.scvo=String(f['SCVO']||'');a.contacto=String(f['contacto']||'');a.bajaC=String(f['baja']||'');a.recotizar=String(f['recotizar']||'');}
+    msg.innerHTML='<span class="saved">✓ Guardado en el sheet ('+(r.matched||0)+' filas)</span>';
+    setTimeout(()=>{closeArt();render();},700);
+  }else{
+    msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((r&&r.error)||'sin conexión')+'). Revisá el punto de conexión.</span>';
+  }
+});
+function isoG2(v){const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(v||''));if(m)return m[3]+'-'+m[2]+'-'+m[1];return isoG(v);}
+function _artMesIso(iso){const m=/^(\d{4})-(\d{2})/.exec(String(iso||''));return m?m[2]+'/'+m[1]:'';}
+
 // export contactos
 document.getElementById('expCli').addEventListener('click',()=>{
   const arr=Object.values(window._M||{});
