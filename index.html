@@ -214,15 +214,17 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
       <div><label>Tipo</label><select id="cmpTipo"><option>Refacturación</option><option>Renovación</option></select></div>
     </div>
     <div class="chips" id="cmpActual"></div>
-    <div class="form" style="margin-bottom:6px">
-      <div><label>Premio nuevo</label><input id="cmpPremio" inputmode="decimal" placeholder="$"></div>
-      <div><label>Cuota nueva</label><input id="cmpCuota" inputmode="decimal" placeholder="$"></div>
+    <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <h2 style="margin:0;font-size:15px">Cotizaciones de otras compañías</h2>
+      <button class="btn sec" id="cmpAddQ">+ Agregar cotización</button>
     </div>
-    <div id="cmpResult" style="margin:4px 0 12px"></div>
+    <div style="font-size:11px;color:#9aa3b8;margin:8px 0 4px;display:grid;grid-template-columns:1.4fr 1fr 1fr 1.3fr 1.3fr auto;gap:8px"><span>Compañía cotizada</span><span>Premio</span><span>Cuota</span><span>Δ vs premio actual</span><span>Δ vs cuota actual</span><span></span></div>
+    <div id="cmpQuotes"></div>
+    <div id="cmpResult" style="margin:12px 0 12px"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="cmpSave">Guardar comparativa en el sheet</button><span id="cmpMsg" style="font-size:13px"></span></div>
     <div style="margin-top:18px"><div class="hh"><h2 style="margin:0">Comparativas guardadas <span class="muted" id="cmpCnt" style="font-weight:400"></span></h2></div>
       <div class="scroll"><table id="tcmp"><thead></thead><tbody></tbody></table></div></div>
-    <datalist id="cmpAsegDL"></datalist>
+    <datalist id="cmpAsegDL"></datalist><datalist id="cmpCompDL"></datalist>
   </div></div>
 
   <div class="foot">Para actualizar datos cuando cambie tu planilla, pedime "actualizá el dashboard". · Generado con Cowork</div>
@@ -451,6 +453,7 @@ function render(){
   setHead('tcross',['Cliente','DNI/CUIT','Compañía','Ramo actual','Coberturas','Ofrecerle'],['','','','','num','wrap-c']);
   body('tcross',cross,m=>{const r=[...m.ramos][0]||'';return `<tr class="clk" data-id="${m.key}"><td>${m.nombre||'—'}</td><td>${m.doc||'—'}</td><td>${[...m.comps].map(x=>`<span class="tag">${x}</span>`).join(' ')}</td><td><span class="tag">${r}</span></td><td class="num">${m.n}</td><td class="wrap-c">${sugerir(r)}</td></tr>`;});
   var _cdl=document.getElementById('cmpAsegDL'); if(_cdl)_cdl.innerHTML=[...new Set(POL.map(x=>x.cli).filter(Boolean))].sort().map(x=>'<option value="'+String(x).replace(/"/g,'&quot;')+'"></option>').join('');
+  var _cdl2=document.getElementById('cmpCompDL'); if(_cdl2)_cdl2.innerHTML=[...new Set([...POL.map(x=>x.comp),...((DATA.art||[]).map(x=>x.comp))].filter(Boolean))].sort().map(x=>'<option value="'+String(x).replace(/"/g,'&quot;')+'"></option>').join('');
   if(typeof _renderCmp==='function')_renderCmp();
   drawCharts(rows,vig);
   if(curCli) renderDetail(curCli);
@@ -535,13 +538,13 @@ document.getElementById('saveCli').addEventListener('click',async ()=>{
 document.getElementById('backCli').addEventListener('click',()=>{curCli=null;document.getElementById('cli-detail').classList.add('hidden');document.getElementById('cli-list').classList.remove('hidden');render();});
 document.getElementById('tc').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)openCliente(tr.dataset.id);});
 document.getElementById('tcross').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr){document.querySelector('.tab[data-t="cli"]').click();openCliente(tr.dataset.id);}});
-let _cmpPolMap={};
+let _cmpPolMap={}; let _cmpQuotes=[{comp:'',premio:'',cuota:''}];
 function _cmpAsegPols(){
   const a=(document.getElementById('cmpAseg').value||'').trim().toUpperCase();
   const sel=document.getElementById('cmpPol'); _cmpPolMap={};
   const list=POL.filter(p=>(p.cli||'').trim().toUpperCase()===a);
-  sel.innerHTML='<option value="">— elegí póliza —</option>'+list.map(p=>{_cmpPolMap[p.nro]={nro:p.nro,pa:p.pa,pm:p.pm,ramo:p.ramo,comp:p.comp};return '<option value="'+String(p.nro).replace(/"/g,'&quot;')+'">'+(p.nro||'(s/n)')+' · '+(p.ramo||'')+' · '+(p.comp||'')+'</option>';}).join('');
-  document.getElementById('cmpActual').innerHTML=''; document.getElementById('cmpResult').innerHTML='';
+  sel.innerHTML='<option value="">— elegí póliza —</option>'+list.map(p=>{_cmpPolMap[p.nro]={nro:p.nro,pa:p.pa,pm:p.pm,ramo:p.ramo,comp:p.comp,periodo:p.periodo};return '<option value="'+String(p.nro).replace(/"/g,'&quot;')+'">'+(p.nro||'(s/n)')+' · '+(p.ramo||'')+' · '+(p.comp||'')+'</option>';}).join('');
+  document.getElementById('cmpActual').innerHTML=''; _cmpQuotes=[{comp:'',premio:'',cuota:''}]; _cmpRenderQuotes(); document.getElementById('cmpResult').innerHTML='';
 }
 function _cmpDelta(act,nue){
   if(act==null||nue==null||isNaN(act)||isNaN(nue)) return '<span class="muted">—</span>';
@@ -549,50 +552,84 @@ function _cmpDelta(act,nue){
   const col=dAbs>0?'#ff8585':(dAbs<0?'#5fd98a':'#9aa3b8'), arr=dAbs>0?'▲':(dAbs<0?'▼':'=');
   return '<span style="color:'+col+'">'+arr+' '+fmt(Math.abs(dAbs))+(dPct!=null?' ('+(dPct>0?'+':'')+dPct.toFixed(1)+'%)':'')+'</span>';
 }
-function _cmpCalc(){
-  const d=_cmpPolMap[document.getElementById('cmpPol').value]||{};
-  const pn=num(document.getElementById('cmpPremio').value), cn=num(document.getElementById('cmpCuota').value);
-  const res=document.getElementById('cmpResult');
-  if(d.pa==null&&d.pm==null&&pn==null&&cn==null){res.innerHTML='';return;}
-  res.innerHTML='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">'+
-    '<div class="card"><div class="k">Premio</div><div style="font-size:13px;margin-top:4px">'+fmt(d.pa)+' → '+fmt(pn)+'</div><div style="margin-top:4px;font-weight:600">'+_cmpDelta(d.pa,pn)+'</div></div>'+
-    '<div class="card"><div class="k">Cuota mensual</div><div style="font-size:13px;margin-top:4px">'+fmt(d.pm)+' → '+fmt(cn)+'</div><div style="margin-top:4px;font-weight:600">'+_cmpDelta(d.pm,cn)+'</div></div></div>';
+function _cur(){return _cmpPolMap[document.getElementById('cmpPol').value]||{};}
+function _cmpRenderQuotes(){
+  const c=document.getElementById('cmpQuotes'); if(!c)return;
+  c.innerHTML=_cmpQuotes.map((q,i)=>'<div class="cmpqrow" style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1.3fr 1.3fr auto;gap:8px;align-items:center;margin-bottom:6px">'+
+    '<input data-q="comp" data-i="'+i+'" list="cmpCompDL" autocomplete="off" placeholder="Compañía" value="'+String(q.comp||'').replace(/"/g,'&quot;')+'">'+
+    '<input data-q="premio" data-i="'+i+'" inputmode="decimal" placeholder="$" value="'+String(q.premio||'').replace(/"/g,'&quot;')+'">'+
+    '<input data-q="cuota" data-i="'+i+'" inputmode="decimal" placeholder="$" value="'+String(q.cuota||'').replace(/"/g,'&quot;')+'">'+
+    '<div class="qd" id="qdp'+i+'" style="font-size:12px;font-weight:600"></div>'+
+    '<div class="qd" id="qdc'+i+'" style="font-size:12px;font-weight:600"></div>'+
+    '<button class="btn ghost" data-del="'+i+'" title="Quitar" style="padding:4px 9px">✕</button>'+
+    '</div>').join('');
+  _cmpCalc();
 }
-function _cmpPick(){const d=_cmpPolMap[document.getElementById('cmpPol').value];const ch=document.getElementById('cmpActual');ch.innerHTML=d?('<div class="chip">Premio actual<b>'+fmt(d.pa)+'</b></div><div class="chip">Cuota actual<b>'+fmt(d.pm)+'</b></div>'):'';_cmpCalc();}
+function _cmpRowDelta(i){
+  const d=_cur(); const q=_cmpQuotes[i]||{};
+  const ep=document.getElementById('qdp'+i), ec=document.getElementById('qdc'+i);
+  if(ep)ep.innerHTML=_cmpDelta(d.pa,num(q.premio));
+  if(ec)ec.innerHTML=_cmpDelta(d.pm,num(q.cuota));
+}
+function _cmpCalc(){ _cmpQuotes.forEach((q,i)=>_cmpRowDelta(i)); _cmpSummary(); }
+function _cmpSummary(){
+  const d=_cur(); const res=document.getElementById('cmpResult'); if(!res)return;
+  const opts=_cmpQuotes.map(q=>({comp:(q.comp||'').trim(),pr:num(q.premio),cu:num(q.cuota)})).filter(o=>o.pr!=null);
+  if(d.pa==null&&!opts.length){res.innerHTML='';return;}
+  let html='<div class="card"><div class="k">Resumen</div><div style="font-size:13px;margin-top:6px">Premio actual: <b>'+fmt(d.pa)+'</b>'+(d.periodo?' <span class="muted">('+d.periodo+')</span>':'')+'</div>';
+  if(opts.length){
+    const best=opts.slice().sort((a,b)=>a.pr-b.pr)[0];
+    const ahorro=(d.pa!=null)?(d.pa-best.pr):null;
+    html+='<div style="margin-top:6px;font-size:13px">Opción más conveniente: <b>'+(best.comp||'(sin nombre)')+'</b> — '+fmt(best.pr)+' &nbsp; '+_cmpDelta(d.pa,best.pr)+'</div>';
+    if(ahorro!=null&&ahorro>0)html+='<div style="margin-top:4px;font-size:13px;color:#5fd98a">Ahorro estimado vs actual: '+fmt(ahorro)+'</div>';
+  }
+  html+='</div>';
+  res.innerHTML=html;
+}
+function _cmpPick(){const d=_cur();const ch=document.getElementById('cmpActual');
+  ch.innerHTML=(d&&d.nro!=null)?('<div class="chip">Compañía actual<b>'+(d.comp||'—')+'</b></div><div class="chip">Premio actual<b>'+fmt(d.pa)+'</b></div><div class="chip">Cuota actual<b>'+fmt(d.pm)+'</b></div><div class="chip">Período (col. L)<b>'+(d.periodo||'—')+'</b></div>'):'';
+  _cmpCalc();
+}
 function _renderCmp(){
   const arr=DATA.comparativas||[]; const el=document.getElementById('cmpCnt'); if(el)el.textContent='· '+arr.length;
-  setHead('tcmp',['Fecha','Asegurado','Póliza','Tipo','Premio ant.','Premio nuevo','Δ Premio','Cuota ant.','Cuota nueva','Δ Cuota'],['','','','','num','num','num','num','num','num']);
+  setHead('tcmp',['Fecha','Asegurado','Póliza','Compañía cot.','Período','Tipo','Premio ant.','Premio cot.','Δ Premio','Cuota ant.','Cuota cot.','Δ Cuota'],['','','','','','','num','num','num','num','num','num']);
   body('tcmp',arr.slice().reverse(),o=>{
     const pm=num(o.PREMIODIFMONTO), cm=num(o.CUOTADIFMONTO);
     const dP=(o.PREMIODIFMONTO!==''&&o.PREMIODIFMONTO!=null)?((pm>0?'▲ ':(pm<0?'▼ ':''))+fmt(Math.abs(pm||0))+(o.PREMIODIFPCT!==''&&o.PREMIODIFPCT!=null?' ('+o.PREMIODIFPCT+'%)':'')):'—';
     const dC=(o.CUOTADIFMONTO!==''&&o.CUOTADIFMONTO!=null)?((cm>0?'▲ ':(cm<0?'▼ ':''))+fmt(Math.abs(cm||0))+(o.CUOTADIFPCT!==''&&o.CUOTADIFPCT!=null?' ('+o.CUOTADIFPCT+'%)':'')):'—';
-    return '<tr><td>'+(o.FECHA||'—')+'</td><td>'+(o.ASEGURADO||'—')+'</td><td>'+(o.POLIZA||'—')+'</td><td>'+(o.TIPO||'—')+'</td><td class="num">'+fmt(num(o.PREMIOANTERIOR))+'</td><td class="num">'+fmt(num(o.PREMIONUEVO))+'</td><td class="num">'+dP+'</td><td class="num">'+fmt(num(o.CUOTAANTERIOR))+'</td><td class="num">'+fmt(num(o.CUOTANUEVA))+'</td><td class="num">'+dC+'</td></tr>';
+    return '<tr><td>'+(o.FECHA||'—')+'</td><td>'+(o.ASEGURADO||'—')+'</td><td>'+(o.POLIZA||'—')+'</td><td>'+(o.COMPANIA||'—')+'</td><td>'+(o.PERIODO||'—')+'</td><td>'+(o.TIPO||'—')+'</td><td class="num">'+fmt(num(o.PREMIOANTERIOR))+'</td><td class="num">'+fmt(num(o.PREMIONUEVO))+'</td><td class="num">'+dP+'</td><td class="num">'+fmt(num(o.CUOTAANTERIOR))+'</td><td class="num">'+fmt(num(o.CUOTANUEVA))+'</td><td class="num">'+dC+'</td></tr>';
   });
 }
 document.getElementById('cmpAseg').addEventListener('change',_cmpAsegPols);
 document.getElementById('cmpPol').addEventListener('change',_cmpPick);
-document.getElementById('cmpPremio').addEventListener('input',_cmpCalc);
-document.getElementById('cmpCuota').addEventListener('input',_cmpCalc);
+document.getElementById('cmpAddQ').addEventListener('click',()=>{_cmpQuotes.push({comp:'',premio:'',cuota:''});_cmpRenderQuotes();});
+document.getElementById('cmpQuotes').addEventListener('input',e=>{const t=e.target;if(!t.dataset||t.dataset.i==null)return;const i=+t.dataset.i;if(!_cmpQuotes[i])return;_cmpQuotes[i][t.dataset.q]=t.value;_cmpRowDelta(i);_cmpSummary();});
+document.getElementById('cmpQuotes').addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;const i=+b.dataset.del;_cmpQuotes.splice(i,1);if(!_cmpQuotes.length)_cmpQuotes=[{comp:'',premio:'',cuota:''}];_cmpRenderQuotes();});
+_cmpRenderQuotes();
 document.getElementById('cmpSave').addEventListener('click',async ()=>{
   const aseg=(document.getElementById('cmpAseg').value||'').trim();
   const nro=document.getElementById('cmpPol').value; const d=_cmpPolMap[nro]||{};
   const tipo=document.getElementById('cmpTipo').value;
-  const pn=num(document.getElementById('cmpPremio').value), cn=num(document.getElementById('cmpCuota').value);
   const msg=document.getElementById('cmpMsg');
   if(!aseg||!nro){msg.innerHTML='<span style="color:#ff8585">Elegí asegurado y póliza.</span>';return;}
-  if(pn==null&&cn==null){msg.innerHTML='<span style="color:#ff8585">Cargá premio y/o cuota nuevos.</span>';return;}
-  const pdm=(pn!=null&&d.pa!=null)?(pn-d.pa):'', pdp=(pn!=null&&d.pa)?((pn-d.pa)/d.pa*100).toFixed(1):'';
-  const cdm=(cn!=null&&d.pm!=null)?(cn-d.pm):'', cdp=(cn!=null&&d.pm)?((cn-d.pm)/d.pm*100).toFixed(1):'';
+  const opts=_cmpQuotes.map(q=>({comp:(q.comp||'').trim(),pr:num(q.premio),cu:num(q.cuota)})).filter(o=>o.pr!=null||o.cu!=null);
+  if(!opts.length){msg.innerHTML='<span style="color:#ff8585">Cargá al menos una cotización con premio o cuota.</span>';return;}
   const t=new Date(); const fch=String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
-  const row={'Asegurado':aseg,'Poliza':nro,'Tipo':tipo,'Premio anterior':(d.pa!=null?d.pa:''),'Premio nuevo':(pn!=null?pn:''),'Premio dif monto':pdm,'Premio dif pct':pdp,'Cuota anterior':(d.pm!=null?d.pm:''),'Cuota nueva':(cn!=null?cn:''),'Cuota dif monto':cdm,'Cuota dif pct':cdp,'Fecha':fch};
+  const per=d.periodo||'';
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
-  msg.innerHTML='Guardando…';
-  const r=await bk({action:'append',sheet:'Comparativas',row:JSON.stringify(row)});
-  if(r&&r.ok){
-    (DATA.comparativas=DATA.comparativas||[]).push({ASEGURADO:aseg,POLIZA:nro,TIPO:tipo,PREMIOANTERIOR:d.pa,PREMIONUEVO:pn,PREMIODIFMONTO:pdm,PREMIODIFPCT:pdp,CUOTAANTERIOR:d.pm,CUOTANUEVA:cn,CUOTADIFMONTO:cdm,CUOTADIFPCT:cdp,FECHA:fch});
-    msg.innerHTML='<span class="saved">✓ Guardada en Comparativas</span>'; _renderCmp();
-    document.getElementById('cmpPremio').value=''; document.getElementById('cmpCuota').value=''; _cmpCalc();
-  }else{ msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((r&&r.error)||'sin conexión')+').</span>'; }
+  msg.innerHTML='Guardando '+opts.length+' cotización(es)…';
+  let okN=0, err='';
+  for(const o of opts){
+    const pn=o.pr, cn=o.cu;
+    const pdm=(pn!=null&&d.pa!=null)?(pn-d.pa):'', pdp=(pn!=null&&d.pa)?((pn-d.pa)/d.pa*100).toFixed(1):'';
+    const cdm=(cn!=null&&d.pm!=null)?(cn-d.pm):'', cdp=(cn!=null&&d.pm)?((cn-d.pm)/d.pm*100).toFixed(1):'';
+    const row={'Asegurado':aseg,'Poliza':nro,'Tipo':tipo,'Compania':o.comp,'Periodo':per,'Premio anterior':(d.pa!=null?d.pa:''),'Premio nuevo':(pn!=null?pn:''),'Premio dif monto':pdm,'Premio dif pct':pdp,'Cuota anterior':(d.pm!=null?d.pm:''),'Cuota nueva':(cn!=null?cn:''),'Cuota dif monto':cdm,'Cuota dif pct':cdp,'Fecha':fch};
+    const r=await bk({action:'append',sheet:'Comparativas',row:JSON.stringify(row)});
+    if(r&&r.ok){okN++;(DATA.comparativas=DATA.comparativas||[]).push({ASEGURADO:aseg,POLIZA:nro,TIPO:tipo,COMPANIA:o.comp,PERIODO:per,PREMIOANTERIOR:d.pa,PREMIONUEVO:pn,PREMIODIFMONTO:pdm,PREMIODIFPCT:pdp,CUOTAANTERIOR:d.pm,CUOTANUEVA:cn,CUOTADIFMONTO:cdm,CUOTADIFPCT:cdp,FECHA:fch});}
+    else{err=(r&&r.error)||'sin conexión';}
+  }
+  if(okN){msg.innerHTML='<span class="saved">✓ '+okN+' cotización(es) guardada(s) en Comparativas</span>'; _renderCmp(); _cmpQuotes=[{comp:'',premio:'',cuota:''}]; _cmpRenderQuotes();}
+  else{msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+err+').</span>';}
 });
 
 const POLFIELDS=[
