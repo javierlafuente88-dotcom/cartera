@@ -321,7 +321,7 @@ async function loadData(){
     const A=art.filter(a=>String(a.ASEGURADO||'').trim()!=='').map((a,_ix)=>({_i:_ix,comp:String(a.COMPANIA||'').toUpperCase(),codigo:String(a['CODIGODEPRODUCTOR69743']||'').trim(),cli:String(a.ASEGURADO||''),doc:a.CUITODNI!=null?String(a.CUITODNI):'',sec:String(a.SECCION||'').trim(),contador:String(a.CONTADOR||''),inicio:artMes(a.INICIODEVIGENCIA),iniso:isoG(a.INICIODEVIGENCIA),capitas:a.CAPITAS!=null?String(a.CAPITAS):'',alic:a.ALICUOTA!=null?String(a.ALICUOTA):'',aumento:a.AUMENTO!=null?String(a.AUMENTO):'',mes:String(a.MES||''),deuda:a.DEUDA!=null?String(a.DEUDA):'',scvo:String(a.SCVO||''),contacto:String(a.CONTACTO||''),bajaC:String(a.BAJA||''),recotizar:String(a.RECOTIZAR||'')}));
     const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map(r=>({comp:String(r.COMPANIA||'').toUpperCase(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
     DATA={polizas:P,clientes:C,siniestros:S,art:A,retiro:R,contactos:_contactos};
-    try{ const cm=await gviz('Comparativas'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm:[]; }catch(e){ DATA.comparativas=[]; }
+    try{ const cm=await gviz('Comparativas'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm.filter(o=>String((o.ASEGURADO!=null?o.ASEGURADO:'')+(o.POLIZA!=null?o.POLIZA:'')+(o.PREMIONUEVO!=null?o.PREMIONUEVO:'')).trim()!==''):[]; }catch(e){ DATA.comparativas=[]; }
     var lm=document.getElementById('loadmsg'); if(lm) lm.remove();
     boot();
   }catch(e){
@@ -604,7 +604,7 @@ function _renderCmp(){
     const pm=num(o.PREMIODIFMONTO), cm=num(o.CUOTADIFMONTO);
     const dP=(o.PREMIODIFMONTO!==''&&o.PREMIODIFMONTO!=null)?((pm>0?'▲ ':(pm<0?'▼ ':''))+fmt(Math.abs(pm||0))+(o.PREMIODIFPCT!==''&&o.PREMIODIFPCT!=null?' ('+o.PREMIODIFPCT+'%)':'')):'—';
     const dC=(o.CUOTADIFMONTO!==''&&o.CUOTADIFMONTO!=null)?((cm>0?'▲ ':(cm<0?'▼ ':''))+fmt(Math.abs(cm||0))+(o.CUOTADIFPCT!==''&&o.CUOTADIFPCT!=null?' ('+o.CUOTADIFPCT+'%)':'')):'—';
-    return '<tr><td>'+_fch(o.FECHA)+'</td><td>'+(o.ASEGURADO||'—')+'</td><td>'+(o.POLIZA||'—')+'</td><td>'+(o.COMPANIA||'—')+'</td><td>'+(o.PERIODO||'—')+'</td><td>'+(o.TIPO||'—')+'</td><td class="num">'+fmt(num(o.PREMIOANTERIOR))+'</td><td class="num">'+fmt(num(o.PREMIONUEVO))+'</td><td class="num">'+dP+'</td><td class="num">'+fmt(num(o.CUOTAANTERIOR))+'</td><td class="num">'+fmt(num(o.CUOTANUEVA))+'</td><td class="num">'+dC+'</td><td><button class="btn ghost cmpdel" title="Borrar comparativa" data-aseg="'+_a(o.ASEGURADO)+'" data-pol="'+_a(o.POLIZA)+'" data-comp="'+_a(o.COMPANIA)+'" data-pa="'+_a(o.PREMIOANTERIOR)+'" data-pn="'+_a(o.PREMIONUEVO)+'" data-ca="'+_a(o.CUOTAANTERIOR)+'" data-cn="'+_a(o.CUOTANUEVA)+'" style="padding:3px 9px">🗑</button></td></tr>';
+    return '<tr><td>'+_fch(o.FECHA)+'</td><td>'+(o.ASEGURADO||'—')+'</td><td>'+(o.POLIZA||'—')+'</td><td>'+(o.COMPANIA||'—')+'</td><td>'+(o.PERIODO||'—')+'</td><td>'+(o.TIPO||'—')+'</td><td class="num">'+fmt(num(o.PREMIOANTERIOR))+'</td><td class="num">'+fmt(num(o.PREMIONUEVO))+'</td><td class="num">'+dP+'</td><td class="num">'+fmt(num(o.CUOTAANTERIOR))+'</td><td class="num">'+fmt(num(o.CUOTANUEVA))+'</td><td class="num">'+dC+'</td><td><button class="btn ghost cmpdel" title="Borrar comparativa" data-cid="'+_a(o.ID)+'" data-aseg="'+_a(o.ASEGURADO)+'" data-pol="'+_a(o.POLIZA)+'" data-comp="'+_a(o.COMPANIA)+'" data-pa="'+_a(o.PREMIOANTERIOR)+'" data-pn="'+_a(o.PREMIONUEVO)+'" data-ca="'+_a(o.CUOTAANTERIOR)+'" data-cn="'+_a(o.CUOTANUEVA)+'" style="padding:3px 9px">🗑</button></td></tr>';
   });
 }
 document.getElementById('cmpAseg').addEventListener('change',_cmpAsegPols);
@@ -615,19 +615,22 @@ document.getElementById('cmpQuotes').addEventListener('click',e=>{const b=e.targ
 _cmpRenderQuotes();
 document.getElementById('tcmp').addEventListener('click',async e=>{
   const b=e.target.closest('.cmpdel'); if(!b)return;
-  if(!confirm('¿Borrar esta comparativa de la planilla? Esta acción no se puede deshacer.'))return;
-  const d=b.dataset;
-  const match={'Asegurado':d.aseg,'Poliza':d.pol,'Compania':d.comp,'Premio anterior':d.pa,'Premio nuevo':d.pn,'Cuota anterior':d.ca,'Cuota nueva':d.cn};
-  Object.keys(match).forEach(k=>{if(match[k]===''||match[k]==null)delete match[k];});
+  if(!confirm('¿Borrar esta comparativa? Esta acción no se puede deshacer.'))return;
+  const cid=b.dataset.cid||'';
   const old=b.textContent; b.textContent='…'; b.disabled=true;
   if(!BK_OK){await bk({action:'ping'});}
-  const r=await bk({action:'deleteMatch',sheet:'Comparativas',match:JSON.stringify(match)});
-  if(r&&r.ok){
-    const arr=DATA.comparativas||[];
-    const idx=arr.findIndex(o=>String(o.ASEGURADO==null?'':o.ASEGURADO)===String(d.aseg||'')&&String(o.POLIZA==null?'':o.POLIZA)===String(d.pol||'')&&String(o.COMPANIA==null?'':o.COMPANIA)===String(d.comp||'')&&String(o.PREMIONUEVO==null?'':o.PREMIONUEVO)===String(d.pn||'')&&String(o.CUOTANUEVA==null?'':o.CUOTANUEVA)===String(d.cn||''));
-    if(idx>=0)arr.splice(idx,1);
+  let r;
+  if(cid){
+    const blank={'Asegurado':'','Poliza':'','Tipo':'','Compania':'','Periodo':'','Premio anterior':'','Premio nuevo':'','Premio dif monto':'','Premio dif pct':'','Cuota anterior':'','Cuota nueva':'','Cuota dif monto':'','Cuota dif pct':'','Fecha':'','id':''};
+    r=await bk({action:'update',sheet:'Comparativas',keyCol:'id',keyVal:cid,fields:JSON.stringify(blank)});
+  } else { r={ok:false,error:'esta comparativa no tiene id'}; }
+  if(r&&r.ok&&(r.matched===undefined||r.matched>0)){
+    DATA.comparativas=(DATA.comparativas||[]).filter(o=>String(o.ID==null?'':o.ID)!==String(cid));
     _renderCmp();
-  }else{ b.textContent=old; b.disabled=false; alert('No se pudo borrar: '+((r&&r.error)||'sin conexión')+'. Si recién agregaste la acción al Apps Script, reimplementá la versión.'); }
+  } else {
+    b.textContent=old; b.disabled=false;
+    alert('No se pudo borrar ('+((r&&r.error)|| (r&&r.matched===0?'no encontré la fila':'sin conexión'))+').');
+  }
 });
 document.getElementById('cmpSave').addEventListener('click',async ()=>{
   const aseg=(document.getElementById('cmpAseg').value||'').trim();
@@ -646,9 +649,10 @@ document.getElementById('cmpSave').addEventListener('click',async ()=>{
     const pn=o.pr, cn=o.cu;
     const pdm=(pn!=null&&d.pa!=null)?(pn-d.pa):'', pdp=(pn!=null&&d.pa)?((pn-d.pa)/d.pa*100).toFixed(1):'';
     const cdm=(cn!=null&&d.pm!=null)?(cn-d.pm):'', cdp=(cn!=null&&d.pm)?((cn-d.pm)/d.pm*100).toFixed(1):'';
-    const row={'Asegurado':aseg,'Poliza':nro,'Tipo':tipo,'Compania':o.comp,'Periodo':per,'Premio anterior':(d.pa!=null?d.pa:''),'Premio nuevo':(pn!=null?pn:''),'Premio dif monto':pdm,'Premio dif pct':pdp,'Cuota anterior':(d.pm!=null?d.pm:''),'Cuota nueva':(cn!=null?cn:''),'Cuota dif monto':cdm,'Cuota dif pct':cdp,'Fecha':fch};
+    const _uid='c'+Date.now()+'_'+Math.floor(Math.random()*100000);
+    const row={'Asegurado':aseg,'Poliza':nro,'Tipo':tipo,'Compania':o.comp,'Periodo':per,'Premio anterior':(d.pa!=null?d.pa:''),'Premio nuevo':(pn!=null?pn:''),'Premio dif monto':pdm,'Premio dif pct':pdp,'Cuota anterior':(d.pm!=null?d.pm:''),'Cuota nueva':(cn!=null?cn:''),'Cuota dif monto':cdm,'Cuota dif pct':cdp,'Fecha':fch,'id':_uid};
     const r=await bk({action:'append',sheet:'Comparativas',row:JSON.stringify(row)});
-    if(r&&r.ok){okN++;(DATA.comparativas=DATA.comparativas||[]).push({ASEGURADO:aseg,POLIZA:nro,TIPO:tipo,COMPANIA:o.comp,PERIODO:per,PREMIOANTERIOR:d.pa,PREMIONUEVO:pn,PREMIODIFMONTO:pdm,PREMIODIFPCT:pdp,CUOTAANTERIOR:d.pm,CUOTANUEVA:cn,CUOTADIFMONTO:cdm,CUOTADIFPCT:cdp,FECHA:fch});}
+    if(r&&r.ok){okN++;(DATA.comparativas=DATA.comparativas||[]).push({ASEGURADO:aseg,POLIZA:nro,TIPO:tipo,COMPANIA:o.comp,PERIODO:per,PREMIOANTERIOR:d.pa,PREMIONUEVO:pn,PREMIODIFMONTO:pdm,PREMIODIFPCT:pdp,CUOTAANTERIOR:d.pm,CUOTANUEVA:cn,CUOTADIFMONTO:cdm,CUOTADIFPCT:cdp,FECHA:fch,ID:_uid});}
     else{err=(r&&r.error)||'sin conexión';}
   }
   if(okN){msg.innerHTML='<span class="saved">✓ '+okN+' cotización(es) guardada(s) en Comparativas</span>'; _renderCmp(); _cmpQuotes=[{comp:'',premio:'',cuota:''}]; _cmpRenderQuotes();}
