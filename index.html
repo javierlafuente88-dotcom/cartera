@@ -200,7 +200,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
       <select id="fart" class="mini"><option value="act">Activos</option><option value="">Todos</option><option value="baja">De baja</option></select></div>
     <div class="scroll"><table id="tart"><thead></thead><tbody></tbody></table></div></div></div>
 
-  <div id="t-ret" class="hidden"><div class="panel"><h2>Seguro de retiro <span class="muted" id="retCnt" style="font-weight:400"></span></h2>
+  <div id="t-ret" class="hidden"><div class="panel"><h2>Seguro de retiro <span class="muted" id="retCnt" style="font-weight:400"></span> <span class="muted" style="font-weight:400;font-size:12px">· hacé clic en una fila para editar</span></h2>
     <div class="scroll"><table id="tret"><thead></thead><tbody></tbody></table></div></div></div>
 
   <div id="t-cross" class="hidden"><div class="panel"><h2>Venta cruzada — clientes con un solo ramo <span class="muted" id="crossCnt" style="font-weight:400"></span></h2>
@@ -236,6 +236,15 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <div class="form" id="polForm" style="margin-top:8px"></div>
     <div id="polMsg" style="margin-top:10px;font-size:13px;min-height:16px"></div>
     <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="polSave">Guardar en el sheet</button><button class="btn sec" id="polCancel">Cancelar</button></div>
+  </div>
+</div>
+
+<div id="retOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9998;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 12px;display:none">
+  <div style="background:#171d2b;border:1px solid #2a3346;border-radius:14px;max-width:680px;width:100%;padding:18px;box-shadow:0 14px 50px rgba(0,0,0,.5)">
+    <div class="hh"><h2 id="retTitle" style="margin:0">Editar retiro</h2><button class="btn ghost" id="retClose">✕ Cerrar</button></div>
+    <div class="form" id="retForm" style="margin-top:8px"></div>
+    <div id="retMsg" style="margin-top:10px;font-size:13px;min-height:16px"></div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="retSave">Guardar en el sheet</button><button class="btn sec" id="retCancel">Cancelar</button></div>
   </div>
 </div>
 
@@ -319,7 +328,7 @@ async function loadData(){
     const C=Object.values(cmap);
     const S=si.filter(s=>String(s.ASEGURADO||s.POLIZA||'').trim()!=='').map((s,i)=>{const est=String(s.ESTADO||'').trim().toLowerCase();return {id:'S'+(i+1),fecha:isoG(s.FECHASINIESTRO),nro:s.NSINIESTRO!=null?String(s.NSINIESTRO):'',pol:s.POLIZA!=null?String(s.POLIZA):'',pat:s.PATENTE||'',cli:String(s.ASEGURADO||''),idc:String(s.ASEGURADO||''),comp:String(s.COMPANIA||'').toUpperCase(),tipo:s.TIPO||'',denuncia:isoG(s.FECHADEDENUNCIA),est:est||'sin estado',estRaw:String(s.ESTADO||''),abierto:!/termin/.test(est),obs:String(s.OBSERVACIONES||'')};});
     const A=art.filter(a=>String(a.ASEGURADO||'').trim()!=='').map((a,_ix)=>({_i:_ix,comp:String(a.COMPANIA||'').toUpperCase(),codigo:String(a['CODIGODEPRODUCTOR69743']||'').trim(),cli:String(a.ASEGURADO||''),doc:a.CUITODNI!=null?String(a.CUITODNI):'',sec:String(a.SECCION||'').trim(),contador:String(a.CONTADOR||''),inicio:artMes(a.INICIODEVIGENCIA),iniso:isoG(a.INICIODEVIGENCIA),capitas:a.CAPITAS!=null?String(a.CAPITAS):'',alic:a.ALICUOTA!=null?String(a.ALICUOTA):'',aumento:a.AUMENTO!=null?String(a.AUMENTO):'',mes:String(a.MES||''),deuda:a.DEUDA!=null?String(a.DEUDA):'',scvo:String(a.SCVO||''),contacto:String(a.CONTACTO||''),bajaC:String(a.BAJA||''),recotizar:String(a.RECOTIZAR||'')}));
-    const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map(r=>({comp:String(r.COMPANIA||'').toUpperCase(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
+    const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map((r,_ix)=>({_i:_ix,comp:String(r.COMPANIA||'').toUpperCase(),codigo:String(r.CODIGO||'').trim(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',sec:String(r.SECCION||'').trim(),plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),nac:isoG(r.FECHADENACIMIENTO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
     DATA={polizas:P,clientes:C,siniestros:S,art:A,retiro:R,contactos:_contactos};
     try{ const cm=await gviz('Comparativas'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm.filter(o=>String((o.ASEGURADO!=null?o.ASEGURADO:'')+(o.POLIZA!=null?o.POLIZA:'')+(o.PREMIONUEVO!=null?o.PREMIONUEVO:'')).trim()!==''):[]; }catch(e){ DATA.comparativas=[]; }
     var lm=document.getElementById('loadmsg'); if(lm) lm.remove();
@@ -451,8 +460,8 @@ function render(){
   let RE=(DATA.retiro||[]);
   if(F.q){const _q=F.q.toLowerCase();RE=RE.filter(r=>((r.cli+' '+r.doc+' '+r.plan+' '+r.nro).toLowerCase().includes(_q)));}
   const _re=document.getElementById('retCnt'); if(_re)_re.textContent='· '+RE.length+' pólizas';
-  setHead('tret',['Asegurado','Compañía','Plan','Nº Póliza','Inicio','Premio','Comisión','Frecuencia','Nota'],['','','','','','num','num','','wrap-c']);
-  body('tret',RE,r=>`<tr><td>${r.cli||'—'}</td><td>${r.comp||'—'}</td><td>${r.plan||'—'}</td><td>${r.nro||'—'}</td><td>${r.inicio?dmy(r.inicio):'—'}</td><td class="num">${r.premio||'—'}</td><td class="num">${r.comision||'—'}</td><td>${r.frec||'—'}</td><td class="wrap-c">${r.obs||'<span class="muted">—</span>'}</td></tr>`);
+  setHead('tret',['Asegurado','Compañía','Cód.','Plan','Nº Póliza','Inicio','Premio','Comisión','Frecuencia','Nota'],['','','','','','','num','num','','wrap-c']);
+  body('tret',RE,r=>`<tr class="clk" data-rix="${r._i}"><td>${r.cli||'—'}</td><td>${r.comp||'—'}</td><td>${r.codigo||'<span class="muted">—</span>'}</td><td>${r.plan||'—'}</td><td>${r.nro||'—'}</td><td>${r.inicio?dmy(r.inicio):'—'}</td><td class="num">${r.premio||'—'}</td><td class="num">${r.comision||'—'}</td><td>${r.frec||'—'}</td><td class="wrap-c">${r.obs||'<span class="muted">—</span>'}</td></tr>`);
   const cross=Object.values(M).filter(m=>m.ramos.size===1&&m.vig>0).sort((a,b)=>(a.prox==null?9e9:a.prox)-(b.prox==null?9e9:b.prox));
   const _ce=document.getElementById('crossCnt'); if(_ce)_ce.textContent='· '+cross.length+' oportunidades';
   setHead('tcross',['Cliente','DNI/CUIT','Compañía','Ramo actual','Coberturas','Ofrecerle'],['','','','','num','wrap-c']);
@@ -899,6 +908,70 @@ document.getElementById('artSave').addEventListener('click',async ()=>{
 });
 function isoG2(v){const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(v||''));if(m)return m[3]+'-'+m[2]+'-'+m[1];return isoG(v);}
 function _artMesIso(iso){const m=/^(\d{4})-(\d{2})/.exec(String(iso||''));return m?m[2]+'/'+m[1]:'';}
+
+// ===== RETIRO edicion completa =====
+const RETFIELDS=[
+ {k:'Asegurado',l:'Asegurado / Razón social',t:'list',list:'dlAsegR'},
+ {k:'CUIT O DNI',l:'CUIT / DNI',t:'text'},
+ {k:'COMPAÑIA',l:'Compañía',t:'list',list:'dlCompR'},
+ {k:'CODIGO',l:'Código (JL/MF)',t:'select',opts:['','JL','MF']},
+ {k:'Seccion',l:'Sección',t:'text'},
+ {k:'PLAN',l:'Plan',t:'text'},
+ {k:'Poliza',l:'Nº Póliza',t:'text'},
+ {k:'inicio',l:'Inicio',t:'date'},
+ {k:'FECHA DE NACIMIENTO',l:'Fecha de nacimiento',t:'date'},
+ {k:'Premio',l:'Premio',t:'num'},
+ {k:'Comision',l:'Comisión',t:'num'},
+ {k:'Frecuencia',l:'Frecuencia',t:'select',opts:['','Mensual','Trimestral','Cuatrimestral','Semestral','Anual']},
+ {k:'Ganancia mensual',l:'Ganancia mensual / Nota',t:'text'}
+];
+let retOrigPol='', retOrigName='', retOrigI=-1;
+function openRet(r){
+  retOrigPol=r.nro||''; retOrigName=r.cli||''; retOrigI=(r._i!=null?r._i:-1);
+  const v={'Asegurado':r.cli||'','CUIT O DNI':r.doc||'','COMPAÑIA':r.comp||'','CODIGO':r.codigo||'','Seccion':r.sec||'','PLAN':r.plan||'','Poliza':r.nro||'','inicio':r.inicio||'','FECHA DE NACIMIENTO':r.nac||'','Premio':r.premio||'','Comision':r.comision||'','Frecuencia':r.frec||'','Ganancia mensual':r.obs||''};
+  document.getElementById('retTitle').textContent='Editar retiro — '+(r.cli||'');
+  let html='';
+  RETFIELDS.forEach(fl=>{
+    const val=String(v[fl.k]==null?'':v[fl.k]).replace(/"/g,'&quot;');
+    let inp;
+    if(fl.t==='select'){inp='<select data-rf="'+fl.k+'">'+fl.opts.map(o=>'<option'+(String(o)===String(v[fl.k]||'')?' selected':'')+'>'+o+'</option>').join('')+'</select>';}
+    else if(fl.t==='date'){inp='<input type="date" data-rf="'+fl.k+'" value="'+val+'">';}
+    else if(fl.t==='list'){inp='<input data-rf="'+fl.k+'" list="'+fl.list+'" autocomplete="off" value="'+val+'">';}
+    else{inp='<input data-rf="'+fl.k+'" value="'+val+'">';}
+    html+='<div><label>'+fl.l+'</label>'+inp+'</div>';
+  });
+  const asegR=[...new Set([...POL.map(x=>x.cli),...(DATA.retiro||[]).map(x=>x.cli)].filter(Boolean))].sort();
+  const compR=[...new Set([...POL.map(x=>x.comp),...(DATA.retiro||[]).map(x=>x.comp)].filter(Boolean))].sort();
+  html+=_dl('dlAsegR',asegR)+_dl('dlCompR',compR);
+  document.getElementById('retForm').innerHTML=html;
+  document.getElementById('retMsg').textContent='';
+  const ov=document.getElementById('retOverlay');ov.classList.remove('hidden');ov.style.display='flex';
+}
+function closeRet(){const ov=document.getElementById('retOverlay');ov.style.display='none';ov.classList.add('hidden');}
+document.getElementById('retClose').addEventListener('click',closeRet);
+document.getElementById('retCancel').addEventListener('click',closeRet);
+document.getElementById('tret').addEventListener('click',e=>{const tr=e.target.closest('tr[data-rix]');if(!tr)return;const r=(DATA.retiro||[]).find(x=>String(x._i)===tr.dataset.rix);if(r)openRet(r);});
+document.getElementById('retSave').addEventListener('click',async ()=>{
+  const f={};document.querySelectorAll('#retForm [data-rf]').forEach(el=>{f[el.dataset.rf]=el.value;});
+  ['inicio','FECHA DE NACIMIENTO'].forEach(k=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f[k]||''));if(m)f[k]=m[3]+'/'+m[2]+'/'+m[1];});
+  ['Premio','Comision'].forEach(k=>{const raw=String(f[k]==null?'':f[k]).trim();if(raw===''){f[k]='';return;}if(!/^[\d.,$%\s-]+$/.test(raw))return;const n=num(raw);if(n!=null)f[k]=n;});
+  Object.keys(f).forEach(k=>{if(typeof f[k]==='string')f[k]=f[k].trim();});
+  const msg=document.getElementById('retMsg');
+  const kc=retOrigPol?'Poliza':'Asegurado';
+  const kv=retOrigPol||retOrigName;
+  if(!kv){msg.innerHTML='<span style="color:#ff8585">No puedo identificar esta fila (sin póliza ni asegurado).</span>';return;}
+  if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
+  msg.innerHTML='Guardando en el sheet…';
+  const r=await bk({action:'update',sheet:'retiro',keyCol:kc,keyVal:kv,fields:JSON.stringify(f)});
+  if(r&&r.ok){
+    const o=(DATA.retiro||[]).find(x=>x._i===retOrigI);
+    if(o){o.cli=f['Asegurado'];o.doc=String(f['CUIT O DNI']||'');o.comp=String(f['COMPAÑIA']||'').toUpperCase();o.codigo=String(f['CODIGO']||'');o.sec=String(f['Seccion']||'');o.plan=String(f['PLAN']||'');o.nro=String(f['Poliza']||'');o.inicio=isoG2(f['inicio']);o.nac=isoG2(f['FECHA DE NACIMIENTO']);o.premio=String(f['Premio']==null?'':f['Premio']);o.comision=String(f['Comision']==null?'':f['Comision']);o.frec=String(f['Frecuencia']||'');o.obs=String(f['Ganancia mensual']||'');}
+    msg.innerHTML='<span class="saved">✓ Guardado en el sheet ('+(r.matched||0)+' filas)</span>';
+    setTimeout(()=>{closeRet();render();},700);
+  }else{
+    msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((r&&r.error)||'sin conexión')+'). Revisá el punto de conexión.</span>';
+  }
+});
 
 // export contactos
 document.getElementById('expCli').addEventListener('click',()=>{
