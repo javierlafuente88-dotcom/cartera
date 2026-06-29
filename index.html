@@ -418,7 +418,7 @@ function render(){
   const cli=Object.values(M).sort((a,b)=>String(a.nombre||'').localeCompare(String(b.nombre||''),'es',{sensitivity:'base'}));
   setHead('tc',['Cliente','DNI/CUIT','Compañías','Coberturas','Ramos / productos','Próx. venc.','Estado'],['','','','num','','num','']);
   document.getElementById('tc').querySelector('tbody').innerHTML=cli.map(c=>{
-    const ed=OV[c.key]?'<span class="edited-mark">✎ editado</span>':'';
+    const ed='';
     return `<tr class="clk" data-id="${c.key}"><td>${c.nombre||'—'}${ed}</td><td>${c.doc||'—'}</td>
     <td>${[...c.comps].map(x=>`<span class="tag">${x}</span>`).join(' ')}</td><td class="num">${c.n}</td>
     <td>${[...c.ramos].map(r=>`<span class="tag">${r}</span>`).join(' ')}</td>
