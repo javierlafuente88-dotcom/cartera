@@ -184,7 +184,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
 
   <div id="t-sin" class="hidden"><div class="panel">
     <div class="hh"><h2>Seguimiento de siniestros</h2>
-      <select id="fsin" class="mini"><option value="abierto">Solo abiertos / en proceso</option><option value="">Todos</option><option value="terminado">Terminados</option></select></div>
+      <div style="display:flex;gap:8px;align-items:center"><select id="fsin" class="mini"><option value="abierto">Solo abiertos / en proceso</option><option value="">Todos</option><option value="terminado">Terminados</option></select><button class="btn" id="addSin">+ Agregar siniestro</button></div></div>
     <div class="scroll"><table id="ts"><thead></thead><tbody></tbody></table></div></div></div>
 
   <div id="t-graf" class="hidden"><div class="grid2">
@@ -742,19 +742,27 @@ const SINFIELDS=[
  {k:'N° SINIESTRO',l:'N° Siniestro',t:'text'},
  {k:'COMPAÑIA',l:'Compañía',t:'list',list:'dlComp'},
  {k:'TIPO',l:'Tipo',t:'text'},
- {k:'POLIZA',l:'Nº Póliza',t:'text'},
+ {k:'POLIZA',l:'Nº Póliza',t:'list',list:'dlPolSin'},
  {k:'PATENTE',l:'Patente',t:'text'},
  {k:'FECHA SINIESTRO',l:'Fecha del siniestro',t:'date'},
  {k:'FECHA DE DENUNCIA',l:'Fecha de denuncia',t:'date'},
  {k:'ESTADO',l:'Estado',t:'select',opts:['','EN PROCESO','TERMINADO']},
  {k:'OBSERVACIONES',l:'Observaciones',t:'text'}
 ];
-let sinOrigNro='', sinOrigId='';
+let sinOrigNro='', sinOrigId='', sinMode='edit';
 function _sinEst(s){const e=(s.estRaw||s.est||'').toUpperCase();if(/TERMIN/.test(e))return 'TERMINADO';if(/PROCES/.test(e))return 'EN PROCESO';return s.estRaw||'';}
+function _sinPolsDL(aseg){
+  const a=(aseg||'').trim().toUpperCase();
+  const pols=POL.filter(p=>(p.cli||'').trim().toUpperCase()===a);
+  const dl=document.getElementById('dlPolSin');
+  if(dl)dl.innerHTML=pols.map(p=>'<option value="'+String(p.nro||'').replace(/"/g,'&quot;')+'">'+(p.comp||'')+(p.ramo?' · '+p.ramo:'')+'</option>').join('');
+  return pols;
+}
 function openSin(s){
-  sinOrigNro=s.nro||''; sinOrigId=s.id||'';
-  const v={'ASEGURADO':s.cli||'','N° SINIESTRO':s.nro||'','COMPAÑIA':s.comp||'','TIPO':s.tipo||'','POLIZA':s.pol||'','PATENTE':s.pat||'','FECHA SINIESTRO':s.fecha||'','FECHA DE DENUNCIA':s.denuncia||'','ESTADO':_sinEst(s),'OBSERVACIONES':s.obs||''};
-  document.getElementById('sinTitle').textContent='Editar siniestro';
+  sinMode=s?'edit':'add';
+  sinOrigNro=s?(s.nro||''):''; sinOrigId=s?(s.id||''):'';
+  const v=s?{'ASEGURADO':s.cli||'','N° SINIESTRO':s.nro||'','COMPAÑIA':s.comp||'','TIPO':s.tipo||'','POLIZA':s.pol||'','PATENTE':s.pat||'','FECHA SINIESTRO':s.fecha||'','FECHA DE DENUNCIA':s.denuncia||'','ESTADO':_sinEst(s),'OBSERVACIONES':s.obs||''}:{};
+  document.getElementById('sinTitle').textContent=s?'Editar siniestro':'Nuevo siniestro';
   let html='';
   SINFIELDS.forEach(fl=>{
     const val=String(v[fl.k]==null?'':v[fl.k]).replace(/"/g,'&quot;');
@@ -766,11 +774,23 @@ function openSin(s){
     html+='<div><label>'+fl.l+'</label>'+inp+'</div>';
   });
   const asegList=[...new Set(POL.map(x=>x.cli).filter(Boolean))].sort();
-  html+=_dl('dlAseg',asegList)+_dl('dlComp',comps);
+  html+=_dl('dlAseg',asegList)+_dl('dlComp',comps)+'<datalist id="dlPolSin"></datalist>';
   document.getElementById('sinForm').innerHTML=html;
   document.getElementById('sinMsg').textContent='';
+  const aEl=document.querySelector('#sinForm [data-sf="ASEGURADO"]');
+  const pEl=document.querySelector('#sinForm [data-sf="POLIZA"]');
+  const cEl=document.querySelector('#sinForm [data-sf="COMPAÑIA"]');
+  _sinPolsDL(aEl?aEl.value:'');
+  if(aEl)aEl.addEventListener('input',()=>{_sinPolsDL(aEl.value);});
+  if(pEl)pEl.addEventListener('change',()=>{
+    const a=(aEl?aEl.value:'').trim().toUpperCase();
+    const pol=POL.find(p=>String(p.nro)===String(pEl.value)&&(p.cli||'').trim().toUpperCase()===a)||POL.find(p=>String(p.nro)===String(pEl.value));
+    if(pol){ if(cEl&&!cEl.value)cEl.value=(pol.comp||''); if(aEl&&!aEl.value)aEl.value=(pol.cli||''); }
+  });
   const ov=document.getElementById('sinOverlay');ov.classList.remove('hidden');ov.style.display='flex';
 }
+function openSinAdd(){openSin(null);}
+var _addSinBtn=document.getElementById('addSin'); if(_addSinBtn)_addSinBtn.addEventListener('click',openSinAdd);
 function closeSin(){const ov=document.getElementById('sinOverlay');ov.style.display='none';ov.classList.add('hidden');}
 document.getElementById('sinClose').addEventListener('click',closeSin);
 document.getElementById('sinCancel').addEventListener('click',closeSin);
@@ -779,7 +799,21 @@ document.getElementById('sinSave').addEventListener('click',async ()=>{
   const f={};document.querySelectorAll('#sinForm [data-sf]').forEach(el=>{f[el.dataset.sf]=el.value;});
   ['FECHA SINIESTRO','FECHA DE DENUNCIA'].forEach(k=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f[k]||''));if(m)f[k]=m[3]+'/'+m[2]+'/'+m[1];});
   Object.keys(f).forEach(k=>{if(typeof f[k]==='string')f[k]=f[k].trim();});
+  f['COMPAÑIA']=(f['COMPAÑIA']||'').toUpperCase();
   const msg=document.getElementById('sinMsg');
+  if(sinMode==='add'){
+    if(!(f['ASEGURADO']||f['N° SINIESTRO'])){msg.innerHTML='<span style="color:#ff8585">Cargá al menos el asegurado o el N° de siniestro.</span>';return;}
+    if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
+    msg.innerHTML='Guardando en el sheet…';
+    const ra=await bk({action:'append',sheet:'SINIESTROS',row:JSON.stringify(f)});
+    if(ra&&ra.ok){
+      const ns={id:'sin'+Date.now(),cli:f['ASEGURADO'],idc:f['ASEGURADO'],nro:f['N° SINIESTRO'],comp:(f['COMPAÑIA']||''),tipo:f['TIPO'],pol:f['POLIZA'],pat:f['PATENTE'],fecha:isoG(f['FECHA SINIESTRO']),denuncia:isoG(f['FECHA DE DENUNCIA']),estRaw:f['ESTADO'],est:(f['ESTADO']||'').toLowerCase()||'sin estado',abierto:!/termin/.test((f['ESTADO']||'').toLowerCase()),obs:f['OBSERVACIONES']};
+      SIN.push(ns);
+      msg.innerHTML='<span class="saved">✓ Siniestro agregado</span>';
+      setTimeout(()=>{closeSin();render();},700);
+    }else{ msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((ra&&ra.error)||'sin conexión')+').</span>'; }
+    return;
+  }
   if(!sinOrigNro){msg.innerHTML='<span style="color:#ff8585">Este siniestro no tiene N° de siniestro: no puedo identificarlo para guardar. Cargá el N° en la planilla primero.</span>';return;}
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
   msg.innerHTML='Guardando en el sheet…';
