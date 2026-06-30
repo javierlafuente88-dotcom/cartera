@@ -731,7 +731,6 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   ['Incio vigencia','Fin de Vigencia'].forEach(k=>{const mm=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f[k]||''));if(mm)f[k]=mm[3]+'/'+mm[2]+'/'+mm[1];});
   ['Premio','Cuota mensual'].forEach(k=>{const n=num(f[k]);f[k]=(n==null?'':n);});
   ['Asegurado','Cuit o Dni','Compañia','Seccion','Poliza','Descripcion'].forEach(k=>{if(typeof f[k]==='string')f[k]=f[k].trim();});
-  f['Enviada']='';
   const msg=document.getElementById('polMsg');
   if(!f.Poliza){msg.innerHTML='<span style="color:#ff8585">Falta el Nº de póliza.</span>';return;}
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
@@ -740,7 +739,7 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   if(polMode==='add') r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)});
   else r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:polOrigNro,fields:JSON.stringify(f)});
   if(r&&r.ok){
-    const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:'',enviada:'',fenvio:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
+    const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
     if(o.idc&&!CLI[o.idc])CLI[o.idc]={id:o.idc,ape:o.idc,nom:'',doc:o.doc,tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
     if(polMode==='add'){POL.push(o);}else{const i=POL.findIndex(x=>String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
     msg.innerHTML='<span class="saved">✓ Guardado en el sheet</span>';
