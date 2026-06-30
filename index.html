@@ -52,7 +52,7 @@ input:focus,select:focus{outline:none;border-color:#5b7cfa;box-shadow:0 0 0 3px 
 .card.alert .v{color:#ff6b6b}
 .card .d{font-size:11.5px;color:#707a90;margin-top:3px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-@media(max-width:780px){.grid2{grid-template-columns:1fr}}
+@media(max-width:1023px){.grid2{grid-template-columns:1fr}}
 .panel{background:#171d2b;border:1px solid #2a3346;border-radius:14px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 .panel h2{font-size:14px;margin:0 0 12px;color:#aab8ff}
 .hh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
@@ -79,6 +79,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
 .tab.active{background:#5b7cfa;color:#fff}
 .tab .cnt{background:#ff5a5a;color:#fff;border-radius:20px;padding:0 6px;font-size:10px;margin-left:5px}
 .hidden{display:none}
+.navtoggle{display:none;align-items:center;justify-content:center;gap:8px;width:100%;background:#1f2737;color:#e6e9f2;border:1px solid #38415a;border-radius:10px;padding:11px;font-size:15px;font-weight:600;cursor:pointer;margin-bottom:10px;min-height:46px}
 .mini{width:auto;display:inline-block;padding:6px 9px}
 .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
 .form label{display:block;font-size:11px;font-weight:600;color:#98a2b8;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
@@ -87,23 +88,32 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
 .chip b{color:#9db4ff;font-size:15px;display:block;margin-top:1px}
 .saved{color:#5fd98a;font-size:12.5px;font-weight:600}
 .edited-mark{color:#ffce6b;font-size:11px;font-weight:600;margin-left:6px}
-@media(max-width:560px){
- .wrap{padding:12px 10px 50px}
- h1{font-size:18px}
- .sub{font-size:12px}
- .card .v{font-size:20px}
- .cards{grid-template-columns:1fr 1fr;gap:9px}
- .card{padding:12px 13px}
+@media(max-width:767px){
+ .navtoggle{display:flex}
+ .tabs{display:none;flex-direction:column;gap:6px;margin-bottom:12px}
+ .tabs.open{display:flex}
+ .tab{width:100%;text-align:left;min-height:44px;padding:12px 14px;font-size:15px;display:flex;align-items:center}
+ input,select,textarea{font-size:16px;min-height:44px}
+ .btn{min-height:44px;padding:11px 15px;font-size:15px}
+ .mini{min-height:42px}
  .filters{grid-template-columns:1fr 1fr}
  .filters>div:first-child{grid-column:1/-1}
- .tabs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:5px;gap:7px}
- .tab{white-space:nowrap;flex:0 0 auto}
- .scroll{max-height:none}
- table{font-size:12.5px}
- th,td{padding:7px 8px}
- .chartbox{height:230px}
+ .cards{grid-template-columns:1fr 1fr;gap:10px}
+ .card{padding:13px 14px}
+ .card .v{font-size:22px}
  .form{grid-template-columns:1fr}
+ .scroll{max-height:none;-webkit-overflow-scrolling:touch}
+ table{font-size:13px}
+ th,td{padding:9px 8px}
+ .chartbox{height:240px}
  .bar,.card,.panel{border-radius:12px}
+ h1{font-size:18px}.sub{font-size:12px}
+}
+@media(max-width:480px){
+ .wrap{padding:12px 10px 84px}
+ .cards{grid-template-columns:1fr}
+ .filters{grid-template-columns:1fr}
+ .card .v{font-size:23px}
 }
 </style>
 </head>
@@ -135,7 +145,8 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
 
   <div class="cards" id="cards"></div>
 
-  <div class="tabs">
+  <button class="navtoggle" id="navToggle" aria-label="Abrir menú">☰ <span id="navToggleLbl">Vencimientos próximos</span></button>
+  <div class="tabs" id="tabsNav">
     <button class="tab active" data-t="venc">Vencimientos próximos</button>
     <button class="tab" data-t="cli">Clientes</button>
     <button class="tab" data-t="pol">Todas las pólizas</button>
@@ -513,7 +524,8 @@ function renderDetail(id){
   document.getElementById('cliForm').innerHTML=FIELDS.map(ff=>{
     if(ff[0]==='tipo') return `<div><label>${ff[1]}</label><select data-f="tipo"><option ${c.tipo==='persona'?'selected':''}>persona</option><option ${c.tipo==='empresa'?'selected':''}>empresa</option></select></div>`;
     if(ff[0]==='nac') return `<div><label>${ff[1]}</label><input type="date" data-f="nac" value="${isoG(c.nac)||''}"></div>`;
-    return `<div><label>${ff[1]}</label><input data-f="${ff[0]}" value="${(c[ff[0]]||'').toString().replace(/"/g,'&quot;')}"></div>`;}).join('');
+    const _ty=ff[0]==='tel'?' type="tel"':ff[0]==='email'?' type="email"':ff[0]==='doc'?' inputmode="numeric"':'';
+    return `<div><label>${ff[1]}</label><input${_ty} data-f="${ff[0]}" value="${(c[ff[0]]||'').toString().replace(/"/g,'&quot;')}"></div>`;}).join('');
   setHead('tcli',['','Compañía','Ramo','Nº Póliza','Inicio','Vence','Días','Estado','Cuota x mes','Descripción'],['','','','','','','num','','num','wrap-c']);
   const sorted=pols.map(p=>({...p,dias:diasVenc(p)})).sort((a,b)=>(a.dias==null?9e9:a.dias)-(b.dias==null?9e9:b.dias));
   body('tcli',sorted,p=>{const[ss,bb]=semaforo(p.dias);
@@ -870,7 +882,7 @@ function openArt(a){
     if(fl.t==='select'){inp='<select data-af="'+fl.k+'">'+fl.opts.map(o=>'<option'+(String(o)===String(v[fl.k]||'')?' selected':'')+'>'+o+'</option>').join('')+'</select>';}
     else if(fl.t==='date'){inp='<input type="date" data-af="'+fl.k+'" value="'+val+'">';}
     else if(fl.t==='list'){inp='<input data-af="'+fl.k+'" list="'+fl.list+'" autocomplete="off" value="'+val+'">';}
-    else{inp='<input data-af="'+fl.k+'" value="'+val+'">';}
+    else{inp='<input data-af="'+fl.k+'"'+(fl.t==='num'?' inputmode="decimal"':'')+' value="'+val+'">';}
     html+='<div><label>'+fl.l+'</label>'+inp+'</div>';
   });
   const asegA=[...new Set([...POL.map(x=>x.cli),...(DATA.art||[]).map(x=>x.cli)].filter(Boolean))].sort();
@@ -936,7 +948,7 @@ function openRet(r){
     if(fl.t==='select'){inp='<select data-rf="'+fl.k+'">'+fl.opts.map(o=>'<option'+(String(o)===String(v[fl.k]||'')?' selected':'')+'>'+o+'</option>').join('')+'</select>';}
     else if(fl.t==='date'){inp='<input type="date" data-rf="'+fl.k+'" value="'+val+'">';}
     else if(fl.t==='list'){inp='<input data-rf="'+fl.k+'" list="'+fl.list+'" autocomplete="off" value="'+val+'">';}
-    else{inp='<input data-rf="'+fl.k+'" value="'+val+'">';}
+    else{inp='<input data-rf="'+fl.k+'"'+(fl.t==='num'?' inputmode="decimal"':'')+' value="'+val+'">';}
     html+='<div><label>'+fl.l+'</label>'+inp+'</div>';
   });
   const asegR=[...new Set([...POL.map(x=>x.cli),...(DATA.retiro||[]).map(x=>x.cli)].filter(Boolean))].sort();
@@ -1008,8 +1020,10 @@ document.getElementById('festado').addEventListener('change',e=>{F.estado=e.targ
 document.getElementById('fvenc').addEventListener('change',e=>{F.venc=e.target.value;render();});
 document.getElementById('fsin').addEventListener('change',e=>{F.sin=e.target.value;render();});
 document.getElementById('reset').addEventListener('click',()=>{F.q='';F.comp='';F.ramo='';F.estado='';F.venc='';document.getElementById('q').value='';fc.value='';fr.value='';document.getElementById('festado').value='';document.getElementById('fvenc').value='';render();});
+var _navT=document.getElementById('navToggle'),_navNav=document.getElementById('tabsNav'); if(_navT&&_navNav)_navT.addEventListener('click',function(){_navNav.classList.toggle('open');});
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tb.classList.add('active');
+  var _nn=document.getElementById('tabsNav'); if(_nn)_nn.classList.remove('open'); var _nl=document.getElementById('navToggleLbl'); if(_nl)_nl.textContent=tb.textContent.replace(/\s+/g,' ').trim();
   ['venc','cli','pol','sin','graf','art','ret','cross','compa'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t));
   if(tb.dataset.t==='cli'){curCli=null;document.getElementById('cli-detail').classList.add('hidden');document.getElementById('cli-list').classList.remove('hidden');}
   render();
@@ -1030,6 +1044,28 @@ async function glTry(){const v=document.getElementById("glpass").value;if(await 
   b.addEventListener("click",glTry);
   p.addEventListener("keydown",e=>{if(e.key==="Enter")glTry();});
   p.focus();
+})();
+</script>
+<div id="a2hs" class="hidden" style="position:fixed;left:10px;right:10px;bottom:10px;z-index:9999;background:#171d2b;border:1px solid #2a3346;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,.55)">
+  <div style="font-size:22px;line-height:1">📲</div>
+  <div style="flex:1;font-size:13px;line-height:1.35"><b>Instalá la app</b><br><span class="muted" id="a2hsTxt">Agregala a tu pantalla de inicio</span></div>
+  <button class="btn" id="a2hsBtn" style="display:none">Instalar</button>
+  <button class="btn ghost" id="a2hsClose" aria-label="Cerrar" style="min-height:auto;padding:6px 9px">✕</button>
+</div>
+<script>
+(function(){
+  var banner=document.getElementById('a2hs'),btn=document.getElementById('a2hsBtn'),txt=document.getElementById('a2hsTxt'),close=document.getElementById('a2hsClose');
+  if(!banner)return;
+  var dismissed=false; try{dismissed=localStorage.getItem('a2hs_dismiss')==='1';}catch(e){}
+  var standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
+  var isMobile=window.matchMedia('(max-width:767px)').matches;
+  if(standalone||dismissed||!isMobile)return;
+  var deferred=null;
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;btn.style.display='inline-block';txt.textContent='Tocá Instalar para agregarla';banner.classList.remove('hidden');});
+  var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if(isIOS){txt.textContent='Tocá Compartir ⬆ y luego "Agregar a inicio"';banner.classList.remove('hidden');}
+  btn.addEventListener('click',async function(){ if(deferred){deferred.prompt(); try{await deferred.userChoice;}catch(e){} deferred=null; banner.classList.add('hidden');} });
+  close.addEventListener('click',function(){banner.classList.add('hidden'); try{localStorage.setItem('a2hs_dismiss','1');}catch(e){}});
 })();
 </script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
