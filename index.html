@@ -1046,28 +1046,6 @@ async function glTry(){const v=document.getElementById("glpass").value;if(await 
   p.focus();
 })();
 </script>
-<div id="a2hs" class="hidden" style="position:fixed;left:10px;right:10px;bottom:10px;z-index:9999;background:#171d2b;border:1px solid #2a3346;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px rgba(0,0,0,.55)">
-  <div style="font-size:22px;line-height:1">📲</div>
-  <div style="flex:1;font-size:13px;line-height:1.35"><b>Instalá la app</b><br><span class="muted" id="a2hsTxt">Agregala a tu pantalla de inicio</span></div>
-  <button class="btn" id="a2hsBtn" style="display:none">Instalar</button>
-  <button class="btn ghost" id="a2hsClose" aria-label="Cerrar" style="min-height:auto;padding:6px 9px">✕</button>
-</div>
-<script>
-(function(){
-  var banner=document.getElementById('a2hs'),btn=document.getElementById('a2hsBtn'),txt=document.getElementById('a2hsTxt'),close=document.getElementById('a2hsClose');
-  if(!banner)return;
-  var dismissed=false; try{dismissed=localStorage.getItem('a2hs_dismiss')==='1';}catch(e){}
-  var standalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
-  var isMobile=window.matchMedia('(max-width:767px)').matches;
-  if(standalone||dismissed||!isMobile)return;
-  var deferred=null;
-  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;btn.style.display='inline-block';txt.textContent='Tocá Instalar para agregarla';banner.classList.remove('hidden');});
-  var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-  if(isIOS){txt.textContent='Tocá Compartir ⬆ y luego "Agregar a inicio"';banner.classList.remove('hidden');}
-  btn.addEventListener('click',async function(){ if(deferred){deferred.prompt(); try{await deferred.userChoice;}catch(e){} deferred=null; banner.classList.add('hidden');} });
-  close.addEventListener('click',function(){banner.classList.add('hidden'); try{localStorage.setItem('a2hs_dismiss','1');}catch(e){}});
-})();
-</script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </body>
 </html>
