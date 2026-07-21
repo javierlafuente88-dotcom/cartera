@@ -158,7 +158,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <button class="tab" data-t="graf">Gráficos</button>
   </div>
 
-  <div id="t-venc"><div class="panel"><h2>Vencimientos — semáforo 🔴 ≤7d · 🟡 ≤30d · 🟢 +30d</h2>
+  <div id="t-venc"><div class="panel"><div class="hh"><h2>Vencimientos — semáforo 🔴 ≤7d · 🟡 ≤30d · 🟢 +30d</h2><button class="btn" id="printVenc">🖨 Imprimir próximos 30 días</button></div>
     <div class="scroll"><table id="tv"><thead></thead><tbody></tbody></table></div></div></div>
 
   <div id="t-cli" class="hidden">
@@ -985,6 +985,62 @@ document.getElementById('retSave').addEventListener('click',async ()=>{
 });
 
 // export contactos
+function _printVenc(){
+  var base=(typeof filtered==='function')?filtered():POL;
+  var lista=base.filter(function(p){var d=diasVenc(p);return d!=null&&d>=0&&d<=30;})
+                .map(function(p){var o=Object.assign({},p);o.dias=diasVenc(p);return o;})
+                .sort(function(a,b){return a.dias-b.dias;});
+  var t=new Date();
+  var fch=String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
+  var totalCuota=lista.reduce(function(s,p){return s+(p.pm||0);},0);
+  var esc=function(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
+  var filas=lista.map(function(p){
+    return '<tr>'+
+      '<td>'+esc(clientName(p.idc)||'-')+'</td>'+
+      '<td>'+esc(p.comp||'-')+'</td>'+
+      '<td>'+esc(p.ramo||'-')+'</td>'+
+      '<td>'+esc(p.nro||'-')+'</td>'+
+      '<td class="c">'+esc(dmy(p.ven))+'</td>'+
+      '<td class="c">'+p.dias+' d</td>'+
+      '<td class="r">'+esc(fmt(p.pm))+'</td>'+
+      '<td>'+esc(p.obs||'')+'</td>'+
+      '<td class="firm"></td>'+
+    '</tr>';
+  }).join('');
+  var html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">'+
+    '<title>Vencimientos 30 dias - Grupo Lafuente</title><style>'+
+    '@page{size:A4 landscape;margin:11mm}'+
+    'body{font-family:Arial,Helvetica,sans-serif;color:#000;margin:0;padding:10px}'+
+    'h1{font-size:16px;margin:0 0 2px}'+
+    '.sub{font-size:11px;color:#555;margin-bottom:10px}'+
+    'table{width:100%;border-collapse:collapse;font-size:10.5px}'+
+    'thead{display:table-header-group}'+
+    'tr{page-break-inside:avoid}'+
+    'th,td{border:1px solid #9aa0ac;padding:4px 6px;text-align:left;vertical-align:top}'+
+    'th{background:#e9ecf3;font-size:9.5px;text-transform:uppercase;letter-spacing:.02em}'+
+    'tbody tr:nth-child(even) td{background:#f6f7fa}'+
+    '.c{text-align:center;white-space:nowrap}.r{text-align:right;white-space:nowrap}'+
+    '.firm{width:80px}'+
+    '.tot{margin-top:10px;font-size:12px;font-weight:bold}'+
+    '.pie{margin-top:6px;font-size:9.5px;color:#666}'+
+    '@media print{.noprint{display:none}}'+
+    '</style></head><body>'+
+    '<h1>Vencimientos - proximos 30 dias</h1>'+
+    '<div class="sub">Grupo Lafuente - Seguros - Salta &nbsp;|&nbsp; Emitido el '+fch+' &nbsp;|&nbsp; '+lista.length+' polizas</div>'+
+    '<table><thead><tr>'+
+      '<th>Cliente</th><th>Compania</th><th>Ramo</th><th>N&ordm; Poliza</th><th>Vence</th><th>Dias</th><th>Cuota x mes</th><th>Descripcion</th><th>Gestion</th>'+
+    '</tr></thead><tbody>'+
+    (filas||'<tr><td colspan="9">Sin vencimientos en los proximos 30 dias.</td></tr>')+
+    '</tbody></table>'+
+    '<div class="tot">Total cuota mensual: '+esc(fmt(totalCuota))+'</div>'+
+    '<div class="pie">Generado desde el Dashboard de Cartera. Los dias se recalculan con la fecha de emision.</div>'+
+    '</body></html>';
+  var w=window.open('','_blank');
+  if(!w){alert('El navegador bloqueo la ventana emergente. Permitila para poder imprimir.');return;}
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} },500);
+}
+var _pv=document.getElementById('printVenc'); if(_pv)_pv.addEventListener('click',_printVenc);
 document.getElementById('expCli').addEventListener('click',()=>{
   const arr=Object.values(window._M||{});
   const esc=v=>{v=(v==null?'':''+v);return /[",\n;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
