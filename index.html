@@ -993,6 +993,7 @@ function _printVenc(){
   var t=new Date();
   var fch=String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
   var totalCuota=lista.reduce(function(s,p){return s+(p.pm||0);},0);
+  var totalPremio=lista.reduce(function(s,p){return s+(p.pa||0);},0);
   var esc=function(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');};
   var filas=lista.map(function(p){
     return '<tr>'+
@@ -1002,6 +1003,7 @@ function _printVenc(){
       '<td>'+esc(p.nro||'-')+'</td>'+
       '<td class="c">'+esc(dmy(p.ven))+'</td>'+
       '<td class="c">'+p.dias+' d</td>'+
+      '<td class="r">'+esc(fmt(p.pa))+'</td>'+
       '<td class="r">'+esc(fmt(p.pm))+'</td>'+
       '<td>'+esc(p.obs||'')+'</td>'+
       '<td class="firm"></td>'+
@@ -1028,11 +1030,11 @@ function _printVenc(){
     '<h1>Vencimientos - proximos 30 dias</h1>'+
     '<div class="sub">Grupo Lafuente - Seguros - Salta &nbsp;|&nbsp; Emitido el '+fch+' &nbsp;|&nbsp; '+lista.length+' polizas</div>'+
     '<table><thead><tr>'+
-      '<th>Cliente</th><th>Compania</th><th>Ramo</th><th>N&ordm; Poliza</th><th>Vence</th><th>Dias</th><th>Cuota x mes</th><th>Descripcion</th><th>Gestion</th>'+
+      '<th>Cliente</th><th>Compania</th><th>Ramo</th><th>N&ordm; Poliza</th><th>Vence</th><th>Dias</th><th>Importe (premio)</th><th>Cuota x mes</th><th>Descripcion</th><th>Gestion</th>'+
     '</tr></thead><tbody>'+
-    (filas||'<tr><td colspan="9">Sin vencimientos en los proximos 30 dias.</td></tr>')+
+    (filas||'<tr><td colspan="10">Sin vencimientos en los proximos 30 dias.</td></tr>')+
     '</tbody></table>'+
-    '<div class="tot">Total cuota mensual: '+esc(fmt(totalCuota))+'</div>'+
+    '<div class="tot">Importe total (premios): '+esc(fmt(totalPremio))+' &nbsp;&nbsp;|&nbsp;&nbsp; Total cuota por mes: '+esc(fmt(totalCuota))+'</div>'+
     '<div class="pie">Generado desde el Dashboard de Cartera. Los dias se recalculan con la fecha de emision.</div>'+
     '</body></html>';
   var w=window.open('','_blank');
