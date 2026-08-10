@@ -156,6 +156,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <button class="tab" data-t="cross">Venta cruzada</button>
     <button class="tab" data-t="compa">Comparativas</button>
     <button class="tab" data-t="graf">Gráficos</button>
+    <button class="tab" data-t="game">🎮 Juego</button>
   </div>
 
   <div id="t-venc"><div class="panel"><div class="hh"><h2>Vencimientos — semáforo 🔴 ≤7d · 🟡 ≤30d · 🟢 +30d</h2><button class="btn" id="printVenc">🖨 Imprimir próximos 30 días</button></div>
@@ -237,6 +238,8 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
       <div class="scroll"><table id="tcmp"><thead></thead><tbody></tbody></table></div></div>
     <datalist id="cmpAsegDL"></datalist><datalist id="cmpCompDL"></datalist>
   </div></div>
+
+  <div id="t-game" class="hidden"><div class="panel"><div id="gameBody"></div></div></div>
 
   <div class="foot">Para actualizar datos cuando cambie tu planilla, pedime "actualizá el dashboard". · Generado con Cowork</div>
 </div>
@@ -553,6 +556,7 @@ document.getElementById('saveCli').addEventListener('click',async ()=>{
   else if(_origName) r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Asegurado',keyVal:_origName,fields:JSON.stringify(fields),all:'1'});
   else r={ok:false,error:'sin CUIT/DNI ni nombre'};
   if(r&&r.ok){
+    if(window.GAME)GAME.add('upd');
     POL.forEach(p=>{const sd=kdoc&&p.doc&&String(p.doc).replace(/\D/g,'')===kdoc;const sn=!kdoc&&(p.cli||'').trim().toUpperCase()===String(_origName||'').trim().toUpperCase();if(sd||sn){if(ov.ape){p.cli=ov.ape;p.idc=ov.ape;}if(ov.doc)p.doc=ov.doc;p.tel=ov.tel||'';p.email=ov.email||'';p.dir=ov.dir||'';p.loc=ov.loc||'';}});
     if(ov.ape&&!CLI[ov.ape])CLI[ov.ape]={id:ov.ape,ape:ov.ape,nom:'',doc:ov.doc||'',tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
     msg.innerHTML='<span class="saved">✓ Guardado en el sheet ('+(r.matched||0)+' filas). Volviendo a la lista…</span>';
@@ -676,7 +680,7 @@ document.getElementById('cmpSave').addEventListener('click',async ()=>{
     if(r&&r.ok){okN++;(DATA.comparativas=DATA.comparativas||[]).push({ASEGURADO:aseg,POLIZA:nro,TIPO:tipo,COMPANIA:o.comp,PERIODO:per,PREMIOANTERIOR:d.pa,PREMIONUEVO:pn,PREMIODIFMONTO:pdm,PREMIODIFPCT:pdp,CUOTAANTERIOR:d.pm,CUOTANUEVA:cn,CUOTADIFMONTO:cdm,CUOTADIFPCT:cdp,FECHA:fch,ID:_uid});}
     else{err=(r&&r.error)||'sin conexión';}
   }
-  if(okN){msg.innerHTML='<span class="saved">✓ '+okN+' cotización(es) guardada(s) en Comparativas</span>'; _renderCmp(); _cmpQuotes=[{comp:'',premio:'',cuota:''}]; _cmpRenderQuotes();}
+  if(okN){if(window.GAME)GAME.add('cmp');msg.innerHTML='<span class="saved">✓ '+okN+' cotización(es) guardada(s) en Comparativas</span>'; _renderCmp(); _cmpQuotes=[{comp:'',premio:'',cuota:''}]; _cmpRenderQuotes();}
   else{msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+err+').</span>';}
 });
 
@@ -729,7 +733,7 @@ async function _markEnviada(nro,on,btn){
   if(!BK_OK){await bk({action:'ping'});}
   const fields=on?{'Enviada':'SI','Fecha envio':fch}:{'Enviada':'','Fecha envio':''};
   const r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:nro,fields:JSON.stringify(fields)});
-  if(r&&r.ok){ p.enviada=on?'SI':''; p.fenvio=on?t.toISOString().slice(0,10):''; render(); }
+  if(r&&r.ok){ p.enviada=on?'SI':''; p.fenvio=on?t.toISOString().slice(0,10):''; if(on&&window.GAME)GAME.add('env'); render(); }
   else { if(btn){btn.disabled=false; btn.textContent=on?'Marcar enviada':'deshacer';} alert('No se pudo actualizar el envío ('+((r&&r.error)||'sin conexión')+').'); }
 }
 document.getElementById('tp').addEventListener('click',async e=>{
@@ -753,7 +757,7 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   if(r&&r.ok){
     const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
     if(o.idc&&!CLI[o.idc])CLI[o.idc]={id:o.idc,ape:o.idc,nom:'',doc:o.doc,tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
-    if(polMode==='add'){POL.push(o);}else{const i=POL.findIndex(x=>String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
+    if(polMode==='add'){POL.push(o);if(window.GAME)GAME.add('nue');}else{const i=POL.findIndex(x=>String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
     msg.innerHTML='<span class="saved">✓ Guardado en el sheet</span>';
     setTimeout(()=>{closePol();render();},650);
   }else{
@@ -832,7 +836,7 @@ document.getElementById('sinSave').addEventListener('click',async ()=>{
     const ra=await bk({action:'append',sheet:'SINIESTROS',row:JSON.stringify(f)});
     if(ra&&ra.ok){
       const ns={id:'sin'+Date.now(),cli:f['ASEGURADO'],idc:f['ASEGURADO'],nro:f['N° SINIESTRO'],comp:(f['COMPAÑIA']||''),tipo:f['TIPO'],pol:f['POLIZA'],pat:f['PATENTE'],fecha:isoG(f['FECHA SINIESTRO']),denuncia:isoG(f['FECHA DE DENUNCIA']),estRaw:f['ESTADO'],est:(f['ESTADO']||'').toLowerCase()||'sin estado',abierto:!/termin/.test((f['ESTADO']||'').toLowerCase()),obs:f['OBSERVACIONES']};
-      SIN.push(ns);
+      SIN.push(ns);if(window.GAME)GAME.add('sin');
       msg.innerHTML='<span class="saved">✓ Siniestro agregado</span>';
       setTimeout(()=>{closeSin();render();},700);
     }else{ msg.innerHTML='<span style="color:#ff8585">No se pudo guardar ('+((ra&&ra.error)||'sin conexión')+').</span>'; }
@@ -1082,7 +1086,7 @@ var _navT=document.getElementById('navToggle'),_navNav=document.getElementById('
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tb.classList.add('active');
   var _nn=document.getElementById('tabsNav'); if(_nn)_nn.classList.remove('open'); var _nl=document.getElementById('navToggleLbl'); if(_nl)_nl.textContent=tb.textContent.replace(/\s+/g,' ').trim();
-  ['venc','cli','pol','sin','graf','art','ret','cross','compa'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t));
+  ['venc','cli','pol','sin','graf','art','ret','cross','compa','game'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render();
   if(tb.dataset.t==='cli'){curCli=null;document.getElementById('cli-detail').classList.add('hidden');document.getElementById('cli-list').classList.remove('hidden');}
   render();
 }));
@@ -1104,6 +1108,77 @@ async function glTry(){const v=document.getElementById("glpass").value;if(await 
   p.focus();
 })();
 </script>
+<script>
+window.GAME=(function(){
+  var LS='cq_game_v1';
+  var PTS={nue:40,upd:15,env:10,cmp:20,sin:10};
+  var LAB={nue:'Póliza nueva',upd:'Cliente actualizado',env:'Póliza enviada',cmp:'Comparativa cargada',sin:'Siniestro cargado'};
+  var ranks=[[0,'Aprendiz'],[150,'Bronce'],[400,'Plata'],[800,'Oro'],[1400,'Platino'],[2200,'Leyenda']];
+  function mk(){var d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1);}
+  function dk(off){var d=new Date();if(off)d.setDate(d.getDate()+off);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+  var st=(function(){var def={pts:0,c:{nue:0,upd:0,env:0,cmp:0,sin:0},streak:0,lastDay:'',month:mk(),nueMes:0,meta:10,claimed:{},badges:{}};try{var j=JSON.parse(localStorage.getItem(LS));if(j){for(var k in def){if(!(k in j))j[k]=def[k];}if(!j.c)j.c=def.c;if(!j.claimed)j.claimed={};if(!j.badges)j.badges={};return j;}}catch(e){}return def;})();
+  function save(){try{localStorage.setItem(LS,JSON.stringify(st));}catch(e){}}
+  function idx(p){var k=0;for(var i=0;i<ranks.length;i++){if(p>=ranks[i][0])k=i;}return k;}
+  var toastEl;
+  function toast(msg){
+    if(!toastEl){toastEl=document.createElement('div');toastEl.style.cssText='position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);background:#171d2b;border:1px solid #37c66b;color:#e6e9f2;padding:10px 18px;border-radius:99px;font-family:sans-serif;font-size:14px;font-weight:600;z-index:99999;opacity:0;transition:all .3s ease;box-shadow:0 8px 30px rgba(0,0,0,.5)';document.body.appendChild(toastEl);}
+    toastEl.textContent=msg;toastEl.style.opacity='1';toastEl.style.transform='translateX(-50%) translateY(0)';
+    clearTimeout(toastEl._h);toastEl._h=setTimeout(function(){toastEl.style.opacity='0';toastEl.style.transform='translateX(-50%) translateY(20px)';},2200);
+  }
+  function confetti(){var cols=['#EF9F27','#5b7cfa','#37c66b','#d4537e','#7f77dd'];for(var i=0;i<30;i++){(function(){var d=document.createElement('div');d.style.cssText='position:fixed;top:-10px;width:9px;height:9px;border-radius:2px;z-index:99998;pointer-events:none;background:'+cols[i%5]+';left:'+(20+Math.random()*60)+'%';document.body.appendChild(d);var x=(Math.random()*2-1)*160,y=window.innerHeight*0.6+Math.random()*200,r=Math.random()*360;d.animate([{transform:'translate(0,0) rotate(0)',opacity:1},{transform:'translate('+x+'px,'+y+'px) rotate('+r+'deg)',opacity:0}],{duration:1200+Math.random()*600,easing:'cubic-bezier(.2,.6,.4,1)'});setTimeout(function(){d.remove();},1900);})();}}
+  function bumpStreak(){var t=dk(0);if(st.lastDay===t)return;st.streak=(st.lastDay===dk(-1))?((st.streak||0)+1):1;st.lastDay=t;}
+  function roll(){var m=mk();if(st.month!==m){st.month=m;st.nueMes=0;st.claimed.meta=false;}}
+  var badges=[
+    {id:'b1',t:'Primer paso',s:'Tu primera acción',test:function(){var s=0;for(var k in st.c){s+=st.c[k];}return s>=1;}},
+    {id:'b2',t:'Cartera al día',s:'5 clientes actualizados',test:function(){return st.c.upd>=5;}},
+    {id:'b3',t:'Comparador pro',s:'2 comparativas',test:function(){return st.c.cmp>=2;}},
+    {id:'b4',t:'Nivel Oro',s:'800 puntos',test:function(){return st.pts>=800;}},
+    {id:'vend',t:'Vendedor del mes',s:'meta de venta cumplida',test:function(){return false;}},
+    {id:'caz',t:'Cazador de pólizas',s:'3 pólizas nuevas',test:function(){return false;}}
+  ];
+  function checkBadges(){badges.forEach(function(b){if(!st.badges[b.id]&&b.test()){st.badges[b.id]=true;save();toast('🏅 Logro: '+b.t);confetti();}});}
+  function add(kind){if(!PTS[kind])return;roll();bumpStreak();var before=idx(st.pts);st.pts+=PTS[kind];st.c[kind]=(st.c[kind]||0)+1;if(kind==='nue')st.nueMes=(st.nueMes||0)+1;save();toast('+'+PTS[kind]+' · '+LAB[kind]);var after=idx(st.pts);if(after>before){setTimeout(function(){toast('¡Subiste a '+ranks[after][1]+'!');confetti();},450);}checkBadges();render();}
+  function claim(id){
+    var tgt={meta:(st.meta||10),g1:3,g3:1000},cur={meta:st.nueMes,g1:st.c.nue,g3:st.pts},bonus={meta:200,g1:100,g3:0};
+    if(!(cur[id]>=tgt[id])||st.claimed[id])return;
+    st.claimed[id]=true;if(bonus[id])st.pts+=bonus[id];
+    if(id==='meta'){st.badges['vend']=true;toast('🏆 ¡Objetivo de venta cumplido! +200');}
+    else if(id==='g1'){st.badges['caz']=true;toast('🎯 ¡Cazador de pólizas! +100');}
+    else{toast('🎁 Recompensa reclamada');}
+    save();confetti();render();
+  }
+  function render(){
+    var body=document.getElementById('gameBody');if(!body)return;roll();
+    var i=idx(st.pts),r=ranks[i],nx=ranks[i+1];
+    var pct=nx?Math.round((st.pts-r[0])/(nx[0]-r[0])*100):100;
+    var nextTxt=nx?((nx[0]-st.pts)+' pts para '+nx[1]):'¡Nivel máximo!';
+    var meta=st.meta||10, metaPct=Math.min(100,Math.round((st.nueMes/meta)*100)), metaDone=st.nueMes>=meta;
+    var rewards=[
+      {id:'meta',t:'Objetivo de venta del mes: '+meta+' pólizas nuevas',rw:'+200 pts + insignia "Vendedor del mes"',cur:st.nueMes,tgt:meta},
+      {id:'g1',t:'3 pólizas nuevas (total)',rw:'Insignia "Cazador de pólizas" + 100 pts',cur:st.c.nue,tgt:3},
+      {id:'g3',t:'Llegá a 1000 puntos',rw:'Título "Leyenda en camino"',cur:st.pts,tgt:1000}
+    ];
+    var rwHtml=rewards.map(function(g){
+      var c=Math.min(g.cur,g.tgt),p=Math.round(c/g.tgt*100),can=g.cur>=g.tgt,cl=st.claimed[g.id];
+      var btn=cl?'<span class="badge b-g">✓ Reclamado</span>':(can?('<button class="btn gclaim" data-g="'+g.id+'">🎁 Reclamar</button>'):('<span class="muted" style="font-size:12px">'+c+' / '+g.tgt+'</span>'));
+      return '<div class="card" style="padding:12px 14px;margin-bottom:8px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><div><div style="font-weight:600;font-size:13px">'+g.t+'</div><div class="muted" style="font-size:12px">Premio: '+g.rw+'</div></div>'+btn+'</div><div style="height:8px;border-radius:99px;background:#0e1320;margin-top:8px;overflow:hidden"><div style="height:100%;width:'+p+'%;background:#f0a92b;border-radius:99px"></div></div></div>';
+    }).join('');
+    var bdHtml=badges.map(function(b){var on=st.badges[b.id];return '<div style="background:#171d2b;border:1px solid #2a3346;border-radius:9px;padding:10px 12px;'+(on?'':'opacity:.45')+'"><div style="font-weight:600;font-size:13px">'+(on?'🏅 ':'🔒 ')+b.t+'</div><div class="muted" style="font-size:11px">'+(on?b.s:'bloqueado')+'</div></div>';}).join('');
+    body.innerHTML=
+      '<div class="hh"><h2 style="margin:0">🎮 Modo juego — recompensas</h2></div>'+
+      '<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="muted" style="font-size:12px">Tu nivel</div><div style="font-size:19px;font-weight:700;color:#9db4ff">'+r[1]+' · Nivel '+(i+1)+'</div></div><div style="text-align:right"><div class="muted" style="font-size:12px">Puntos</div><div style="font-size:22px;font-weight:700;color:#9db4ff">'+st.pts+'</div></div></div><div style="display:flex;justify-content:space-between;font-size:12px;margin:10px 0 5px" class="muted"><span>Progreso</span><span>'+nextTxt+'</span></div><div style="height:12px;border-radius:99px;background:#0e1320;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:#5b7cfa;border-radius:99px;transition:width .4s"></div></div></div>'+
+      '<div class="cards" style="margin-bottom:14px"><div class="card"><div class="k">🔥 Racha</div><div class="v" style="font-size:22px">'+(st.streak||0)+' días</div></div><div class="card"><div class="k">Pólizas nuevas (mes)</div><div class="v" style="font-size:22px">'+(st.nueMes||0)+'</div></div><div class="card"><div class="k">Puntos totales</div><div class="v" style="font-size:22px">'+st.pts+'</div></div></div>'+
+      '<div class="card" style="margin-bottom:14px;border:1px solid '+(metaDone?'#37c66b':'#2a3346')+'"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap"><b>🎯 Objetivo de venta del mes</b><span class="muted" style="font-size:12px;margin-left:auto">meta:</span><input id="gMeta" type="number" inputmode="numeric" min="1" value="'+meta+'" style="width:64px;padding:5px 8px"></div><div class="muted" style="font-size:12px;margin-bottom:6px">Pólizas nuevas (cualquier ramo): '+(st.nueMes||0)+' / '+meta+'</div><div style="height:10px;border-radius:99px;background:#0e1320;overflow:hidden"><div style="height:100%;width:'+metaPct+'%;background:#37c66b;border-radius:99px"></div></div></div>'+
+      '<div style="font-weight:600;font-size:14px;margin:0 0 8px">🎁 Objetivos con recompensa</div>'+rwHtml+
+      '<div style="font-weight:600;font-size:14px;margin:8px 0 8px">🏅 Logros</div><div class="cards">'+bdHtml+'</div>'+
+      '<div class="card" style="margin-top:14px"><b>Cómo sumás puntos</b><div class="muted" style="font-size:12.5px;margin-top:6px;line-height:1.9">🎯 Póliza nueva +40 &nbsp;·&nbsp; ✏️ Actualizar cliente +15 &nbsp;·&nbsp; 📤 Marcar enviada +10 &nbsp;·&nbsp; ⚖️ Comparativa +20 &nbsp;·&nbsp; 🛡️ Siniestro +10</div></div>';
+    var mi=document.getElementById('gMeta');if(mi)mi.onchange=function(){var v=parseInt(mi.value,10);if(v>0){st.meta=v;save();render();}};
+    body.querySelectorAll('.gclaim').forEach(function(bt){bt.onclick=function(){claim(bt.dataset.g);};});
+  }
+  return {add:add,render:render};
+})();
+</script>
+
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
 </body>
 </html>
