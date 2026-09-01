@@ -716,7 +716,8 @@ function openPol(mode,p){
   });
   const asegList=[...new Set(POL.map(x=>x.cli).filter(Boolean))].sort();
   html+=_dl('dlAseg',asegList)+_dl('dlComp',comps)+_dl('dlRamo',ramos);
-  document.getElementById('polForm').innerHTML=html;
+  document.getElementById('polForm').innerHTML='<div id="polPdfBox" style="grid-column:1/-1;margin:0 0 8px;padding:8px 10px;border:1px dashed #3a4a6a;border-radius:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="polPdfBtn">📄 Adjuntar PDF y autocompletar</button><input type="file" id="polPdfInp" accept="application/pdf" style="display:none"><span id="polPdfStatus" class="muted" style="font-size:13px"></span></div>'+html;
+  (function(){var _b=document.getElementById('polPdfBtn'),_i=document.getElementById('polPdfInp'),_s=document.getElementById('polPdfStatus');if(_b&&_i){_b.addEventListener('click',function(){_i.value='';_i.click();});_i.addEventListener('change',async function(){var f=_i.files&&_i.files[0];if(!f)return;if(_s)_s.textContent='Leyendo PDF…';var stEl={set textContent(v){if(_s)_s.textContent=v;}};try{if(!window.PDFIMP){if(_s)_s.textContent='Módulo PDF no disponible';return;}await window.PDFIMP.handleFile(f,stEl);}catch(e){if(_s)_s.textContent='No se pudo leer el PDF';}});}})();
   const _a=document.querySelector('#polForm [data-pf=\'Asegurado\']'), _d=document.querySelector('#polForm [data-pf=\'Cuit o Dni\']');
   if(_a&&_d){const m={};POL.forEach(x=>{const k=(x.cli||'').trim().toUpperCase();if(k&&!m[k]&&x.doc)m[k]=x.doc;});_a.addEventListener('change',()=>{const k=_a.value.trim().toUpperCase();if(m[k]&&!_d.value.trim())_d.value=m[k];});}
   document.getElementById('polMsg').textContent='';
@@ -1322,7 +1323,7 @@ window.PDFIMP=(function(){
 
   function setF(k,v){var el=document.querySelector('#polForm [data-pf="'+k+'"]');if(el&&v!=null&&v!==''){el.value=v;}}
   function fill(d){
-    if(typeof openPol==='function')openPol('add',null);
+    if(!document.getElementById('polForm')||!document.querySelector('#polForm [data-pf]')){ if(typeof openPol==='function')openPol('add',null); }
     setF('Asegurado',d.asegurado);
     setF('Cuit o Dni',d.cuit_dni);
     setF('Compañia',d.compania);
