@@ -191,7 +191,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     </div>
   </div>
 
-  <div id="t-pol" class="hidden"><div class="panel"><div class="hh"><h2>Listado de pólizas <span class="muted" id="penCnt" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><select id="fenv" class="mini"><option value="">Envío: todas</option><option value="pend">Pendientes de enviar</option><option value="env">Enviadas</option></select><button class="btn" id="addPol">+ Nueva póliza</button></div></div>
+  <div id="t-pol" class="hidden"><div class="panel"><div class="hh"><h2>Listado de pólizas <span class="muted" id="penCnt" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><select id="fenv" class="mini"><option value="">Envío: todas</option><option value="pend">Pendientes de enviar</option><option value="env">Enviadas</option></select><button class="btn" id="importPdf" title="Leer un PDF de póliza y precargar el formulario">📄 Importar PDF</button><input type="file" id="pdfFile" accept="application/pdf" style="display:none"><button class="btn" id="addPol">+ Nueva póliza</button></div></div>
     <div class="scroll"><table id="tp"><thead></thead><tbody></tbody></table></div></div></div>
 
   <div id="t-sin" class="hidden"><div class="panel">
@@ -1176,6 +1176,204 @@ window.GAME=(function(){
     body.querySelectorAll('.gclaim').forEach(function(bt){bt.onclick=function(){claim(bt.dataset.g);};});
   }
   return {add:add,render:render};
+})();
+</script>
+
+<script>
+/* ===== Importador de PDF de pólizas — Grupo Lafuente ===== */
+window.PDFIMP=(function(){
+  var PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  var PDFJS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  var TESS_URL='https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
+  function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=function(){rej(new Error('No se pudo cargar '+src));};document.head.appendChild(s);});}
+  var _pdf=null,_tess=null;
+  async function ensurePdf(){if(_pdf)return _pdf;if(!window.pdfjsLib)await loadScript(PDFJS_URL);window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;_pdf=window.pdfjsLib;return _pdf;}
+  async function ensureTess(){if(_tess)return _tess;if(!window.Tesseract)await loadScript(TESS_URL);_tess=window.Tesseract;return _tess;}
+
+  function clean(s){return (s==null?'':String(s)).replace(/\s+/g,' ').trim();}
+
+  async function extractText(buf){
+    var pdfjs=await ensurePdf();
+    var pdf=await pdfjs.getDocument({data:buf}).promise;
+    var out=[];
+    for(var i=1;i<=pdf.numPages;i++){
+      var page=await pdf.getPage(i);
+      var tc=await page.getTextContent();
+      var its=[];
+      tc.items.forEach(function(it){ if(!it.str)return; its.push({x:it.transform[4],y:it.transform[5],s:it.str,w:(it.width||it.str.length*3)}); });
+      its.sort(function(a,b){return (b.y-a.y)||(a.x-b.x);});
+      var lines=[],cur=null;
+      its.forEach(function(it){ if(!cur||Math.abs(it.y-cur.y)>3){cur={y:it.y,items:[it]};lines.push(cur);} else cur.items.push(it); });
+      lines.forEach(function(L){ L.items.sort(function(a,b){return a.x-b.x;}); var line='',lastEnd=null;
+        L.items.forEach(function(it){ if(lastEnd!=null){ var gap=it.x-lastEnd; var sp=gap>3?Math.min(10,Math.max(2,Math.round(gap/4))):(gap>0.3?1:0); line+=new Array(sp+1).join(' '); } line+=it.s; lastEnd=it.x+it.w; });
+        out.push(line); });
+      out.push('');
+    }
+    try{await pdf.destroy();}catch(e){}
+    return out.join('\n');
+  }
+
+  async function ocrText(buf,onProg){
+    var pdfjs=await ensurePdf(); var T=await ensureTess();
+    var pdf=await pdfjs.getDocument({data:buf.slice(0)}).promise;
+    var full='';
+    var N=Math.min(pdf.numPages,4);
+    for(var i=1;i<=N;i++){
+      var page=await pdf.getPage(i);
+      var vp=page.getViewport({scale:2});
+      var cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+      await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      if(onProg)onProg('OCR página '+i+'/'+N+'…');
+      var r=await T.recognize(cv,'spa');
+      full+='\n'+(r&&r.data&&r.data.text||'');
+    }
+    try{await pdf.destroy();}catch(e){}
+    return full;
+  }
+
+  /* ---- Parser ---- */
+  function detect(t){
+    var tl=t.toLowerCase();
+    if(tl.indexOf('el norte')>-1) return 'EL NORTE';
+    if(tl.indexOf('swissmedical')>-1||tl.indexOf('smg compañia')>-1||tl.indexOf('smg compania')>-1) return 'SWISS MEDICAL';
+    if(tl.indexOf('riouruguay')>-1||tl.indexOf('rio uruguay')>-1) return 'RIO URUGUAY';
+    if(tl.indexOf('sancor')>-1) return 'SANCOR';
+    if(tl.indexOf('federaci')>-1&&tl.indexOf('patronal')>-1) return 'FEDERACION PATRONAL';
+    if(tl.indexOf('galiciaseguros')>-1||tl.indexOf('seguros galicia')>-1||tl.indexOf('galicia seguros')>-1) return 'GALICIA';
+    return '';
+  }
+  function g(pat,t,grp){var m=t.match(pat);return m?clean(m[grp||1]):'';}
+  var MES={enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'};
+  function esDateToDMY(s){
+    var m=s&&s.match(/(\d{1,2})\s+([A-Za-zÁÉÍÓÚáéíóú]+)\s+de\s+(\d{4})/);
+    if(!m)return '';var mm=MES[m[2].toLowerCase()];if(!mm)return '';
+    return (m[1].length<2?'0'+m[1]:m[1])+'/'+mm+'/'+m[3];
+  }
+  function toNum(s,style){
+    if(s==null)return '';s=(''+s).replace(/[^\d.,]/g,'');if(!s)return '';
+    if(style==='us')s=s.replace(/,/g,'');
+    else if(style==='ar')s=s.replace(/\./g,'').replace(',','.');
+    else{
+      if(s.indexOf(',')>-1&&s.indexOf('.')>-1){ if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); }
+      else if(s.indexOf(',')>-1){ var d=s.split(',').pop(); s=(d.length===2)?s.replace(',','.'):s.replace(/,/g,''); }
+      else{ var dd=s.split('.').pop(); if(s.indexOf('.')>-1&&dd.length===3)s=s.replace(/\./g,''); }
+    }
+    var n=parseFloat(s);return isNaN(n)?'':n;
+  }
+  function parse(t){
+    var comp=detect(t);
+    var d={compania:comp,seccion:'',asegurado:'',cuit_dni:'',poliza:'',inicio:'',fin:'',premio:'',moneda:'ARS',operacion:''};
+    if(comp==='GALICIA'){
+      d.seccion=g(/Secci[oó]n\s+([A-Za-zÁÉÍÓÚñÑ ]+?)\s{2,}/,t)||g(/Secci[oó]n\s+([A-Za-zÁÉÍÓÚñÑ ]{3,})/,t);
+      var m=t.match(/Asegurado\s+\d+\s*-\s*(.+)/); if(m)d.asegurado=clean(m[1]);
+      d.asegurado=d.asegurado.replace(/\s*P[oó]liza\s*\d+.*$/i,'').trim();
+      d.cuit_dni=g(/CUIT:\s*([\d.\-]+)/,t);
+      d.poliza=g(/P[oó]liza\s+(\d{4,})/,t);
+      d.operacion=g(/Operaci[oó]n\s+([A-Za-zÁÉÍÓÚ]+)/,t);
+      d.inicio=g(/Vigencia Desde\s+(\d{2}\/\d{2}\/\d{4})/,t);
+      d.fin=g(/Vigencia Hasta\s+(\d{2}\/\d{2}\/\d{4})/,t);
+      var pm=t.match(/Premio\s+U\$S\s+([\d.,]+)/i); if(pm){d.premio=toNum(pm[1],'us');d.moneda='USD';}
+      else{pm=t.match(/Premio\s+\$?\s*([\d.,]+)/i);if(pm)d.premio=toNum(pm[1],'us');}
+    } else if(comp==='RIO URUGUAY'){
+      d.seccion=g(/Secci[oó]n:\s*([A-ZÁÉÍÓÚ]+)/,t);
+      d.asegurado=g(/Asegurado:\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]+?)(?:\s{2,}|DNI|CUIT|\r?\n|$)/,t);
+      d.cuit_dni=g(/DNI\/CU[A-Z]+:\s*([\d.\-]+)/,t);
+      var pol=g(/P[oó]liza:\s*([\d:]+)/,t); if(pol)d.poliza=pol.split(':').pop();
+      d.operacion=g(/Motivo del Endoso:\s*([A-Za-zÁÉÍÓÚ ]+)/,t);
+      var pr=t.match(/Premio:\s*\$\s*([\d.,]+)/i); if(pr)d.premio=toNum(pr[1],'ar');
+    } else if(comp==='SWISS MEDICAL'){
+      d.asegurado=g(/Asegurado:\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]+?)(?:\s{2,}|Cod|DNI|Cuit|\r?\n|$)/,t);
+      d.cuit_dni=g(/Cuit Nro\.?:\s*([\d.\-]+)/,t)||g(/DNI\s*-\s*(\d+)/,t);
+      d.poliza=g(/P[oó]liza-?Endoso:\s*(\d+)/,t);
+      d.operacion=g(/Operaci[oó]n:\s*([A-Za-zÁÉÍÓÚ ]+)/,t);
+      d.inicio=esDateToDMY(g(/desde las [\d:\.]+\s*hs\.?\s*del\s+(\d{1,2}\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+de\s+\d{4})/,t));
+      var ps=t.match(/Premio:\s*\$\s*([\d.,]+)/i); if(ps)d.premio=toNum(ps[1],'us');
+      d.seccion=g(/Secci[oó]n:\s*([A-Za-zÁÉÍÓÚ ]{3,})/,t);
+    } else if(comp==='EL NORTE'){
+      d.seccion=g(/Secci[oó]n\s+(\d+\s*-\s*[A-ZÁÉÍÓÚ ]+?)\s{2,}/,t)||g(/Secci[oó]n\s+(\d+\s*-\s*[A-ZÁÉÍÓÚ ]+)/,t);
+      d.asegurado=g(/Nombre\s+(?:\([\d.]+\)\s*)?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]+?)(?:\s{2,}|\r?\n|$)/,t);
+      d.poliza=g(/N[uú]mero\s+([\d.]{4,})/,t);
+      d.cuit_dni=g(/Documento\s+(?:CUIT|DNI)\s*([\d.\-]+)/,t);
+      d.inicio=g(/Vigencia desde\s+[\d:]+\s*del\s+(\d{2}\/\d{2}\/\d{4})/,t);
+      d.fin=g(/Vigencia hasta\s+[\d:]+\s*del\s+(\d{2}\/\d{2}\/\d{4})/,t);
+      d.operacion=g(/Suplemento\s+(\d+\s*-\s*[A-ZÁÉÍÓÚ /]+?)\s{2,}/,t);
+    } else {
+      d.asegurado=g(/(?:Asegurado|Nombre|Tomador)\s*:?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]{4,}?)(?:\s{2,}|\r?\n|$)/,t);
+      d.cuit_dni=g(/(?:CUIT|CUIL|DNI)[^\d]{0,8}(\d{2}[\d.\-]{6,})/,t);
+      d.poliza=g(/(?:P[oó]liza|N[uú]mero)\s*[:\-]?\s*([\d.\-]{4,})/,t);
+      d.seccion=g(/Secci[oó]n\s*:?\s*([A-Za-zÁÉÍÓÚ0-9 \-]{3,}?)(?:\s{2,}|\r?\n|$)/,t);
+      d.inicio=g(/Vigencia\s+desde[^\d]*(\d{2}\/\d{2}\/\d{4})/,t);
+      d.fin=g(/Vigencia\s+hasta[^\d]*(\d{2}\/\d{2}\/\d{4})/,t);
+      var pg=t.match(/(?:Premio|Prima)[^\d]{0,20}\$?\s*([\d.,]{4,})/i); if(pg)d.premio=toNum(pg[1]);
+    }
+    return d;
+  }
+
+  /* ---- Período & fechas ---- */
+  function dmyToDate(s){var m=(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?new Date(+m[3],+m[2]-1,+m[1]):null;}
+  function dmyToIso(s){var m=(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/);return m?m[3]+'-'+m[2]+'-'+m[1]:'';}
+  function inferPeriodo(ini,fin){
+    var a=dmyToDate(ini),b=dmyToDate(fin); if(!a||!b)return '';
+    var months=(b-a)/(1000*60*60*24*30.44);
+    if(months>=10)return 'Anual'; if(months>=5)return 'Semestral';
+    if(months>=3.5)return 'Cuatrimestral'; if(months>=2.2)return 'Trimestral';
+    if(months>=0.5)return 'Mensual'; return '';
+  }
+
+  function setF(k,v){var el=document.querySelector('#polForm [data-pf="'+k+'"]');if(el&&v!=null&&v!==''){el.value=v;}}
+  function fill(d){
+    if(typeof openPol==='function')openPol('add',null);
+    setF('Asegurado',d.asegurado);
+    setF('Cuit o Dni',d.cuit_dni);
+    setF('Compañia',d.compania);
+    setF('Seccion',d.seccion);
+    setF('Poliza',d.poliza);
+    setF('Incio vigencia',dmyToIso(d.inicio));
+    setF('Fin de Vigencia',dmyToIso(d.fin));
+    var per=inferPeriodo(d.inicio,d.fin); if(per)setF('Periodo',per);
+    if(d.premio!==''&&d.premio!=null)setF('Premio',d.premio);
+    var desc=[]; if(d.operacion)desc.push(d.operacion); if(d.moneda==='USD')desc.push('USD'); desc.push('importado de PDF');
+    setF('Descripcion',desc.join(' · '));
+    var msg=document.getElementById('polMsg');
+    if(msg){var faltan=[];['asegurado','poliza','inicio'].forEach(function(k){if(!d[k])faltan.push(k);});
+      msg.innerHTML='<span style="color:#37c66b">✓ Datos importados'+(d.compania?(' ('+d.compania+')'):'')+'. Revisá'+(faltan.length?(' — completá: '+faltan.join(', ')):'')+' y guardá.</span>';}
+  }
+
+  async function handleFile(file,statusEl){
+    function st(m){if(statusEl)statusEl.textContent=m;}
+    try{
+      st('Leyendo PDF…');
+      var buf=await file.arrayBuffer();
+      var text=await extractText(buf.slice(0));
+      if((text||'').replace(/\s/g,'').length<400){
+        st('PDF escaneado: iniciando OCR (puede tardar)…');
+        try{ var o=await ocrText(buf,st); if((o||'').length>(text||'').length)text=o; }catch(e){ st('OCR no disponible: '+e.message); }
+      }
+      var d=parse(text);
+      fill(d);
+      return d;
+    }catch(e){ st('Error al leer el PDF: '+e.message); throw e; }
+  }
+  return {handleFile:handleFile,parse:parse,extractText:extractText};
+})();
+</script>
+
+<script>
+(function(){
+  function wire(){
+    var b=document.getElementById('importPdf'), inp=document.getElementById('pdfFile');
+    if(!b||!inp)return;
+    b.addEventListener('click',function(){ inp.value=''; inp.click(); });
+    inp.addEventListener('change',async function(){
+      var f=inp.files&&inp.files[0]; if(!f)return;
+      if(typeof openPol==='function')openPol('add',null);
+      var mm=document.getElementById('polMsg'); if(mm)mm.innerHTML='<span class="muted">Leyendo PDF…</span>';
+      var statusEl={ set textContent(v){ var m=document.getElementById('polMsg'); if(m)m.textContent=v; } };
+      try{ await window.PDFIMP.handleFile(f, statusEl); }
+      catch(e){ var m=document.getElementById('polMsg'); if(m)m.innerHTML='<span style="color:#ff8585">No se pudo leer el PDF ('+(e&&e.message||'error')+').</span>'; }
+    });
+  }
+  if(document.readyState!=='loading')wire(); else document.addEventListener('DOMContentLoaded',wire);
 })();
 </script>
 
