@@ -1245,6 +1245,30 @@ window.PDFIMP=(function(){
     if(style==='us')s=s.replace(/,/g,''); else if(style==='ar')s=s.replace(/\./g,'').replace(',','.');
     else{ if(s.indexOf(',')>-1&&s.indexOf('.')>-1){ if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); } else if(s.indexOf(',')>-1){ var d=s.split(',').pop(); s=(d.length===2)?s.replace(',','.'):s.replace(/,/g,''); } else { var dd=s.split('.').pop(); if(s.indexOf('.')>-1&&dd.length===3)s=s.replace(/\./g,''); } }
     var n=parseFloat(s);return isNaN(n)?'':n; }
+  var COMPANY_MAP={'RIO URUGUAY':'RUS','SWISS MEDICAL':'SMG','MERCANTIL ANDINA':'MERCANTIL','LA SEGUNDA':'LA 2DA','SAN CRISTOBAL':'San Cristobal'};
+  function mapSeccion(s){ if(!s)return ''; var u=s.toUpperCase();
+    if(/AUTOMOTOR|AUTOMOVIL|AUTOM\u00d3VIL/.test(u)) return /FLOTA/.test(u)?'AUTOMOTOR FLOTA':'AUTOMOTOR';
+    if(/MOTO/.test(u)) return 'MOTO';
+    if(/ACCIDENTES PERSONALES|ACC\.? ?PERS/.test(u)) return 'ACC. PERSONALES';
+    if(/RESPONSABILIDAD CIVIL|(^| )RC( |$)/.test(u)) return 'RC';
+    if(/INTEGRAL DE COMERCIO|INT.*COMERCIO/.test(u)) return 'INT DE COMERCIO';
+    if(/SEGURO TECNICO|SEG.*TECNICO|T\u00c9CNICO|TECNICO/.test(u)) return 'SEG TECNICO';
+    if(/TRANSPORTE/.test(u)) return 'TRANSPORTE';
+    if(/HOGAR/.test(u)) return 'HOGAR';
+    if(/CAUCION|CAUCI\u00d3N/.test(u)) return 'CAUCION';
+    if(/MALA PRAXIS/.test(u)) return 'MALA PRAXIS';
+    if(/VIDA/.test(u)) return /OBLIG/.test(u)?'VIDA OBLIGATORIO':'VIDA';
+    if(/INCENDIO/.test(u)) return 'INCENDIO';
+    if(/CONSORCIO/.test(u)) return 'CONSORCIO';
+    return u; }
+  function normalizeSheet(d){
+    d.asegurado=(d.asegurado||'').toUpperCase().replace(/\s+/g,' ').trim();
+    d.cuit_dni=(d.cuit_dni||'').replace(/\D/g,'');
+    if(d.compania) d.compania=(COMPANY_MAP[d.compania]||d.compania).toString();
+    if(d.seccion) d.seccion=mapSeccion(d.seccion);
+    return d;
+  }
+
   function genericParse(t){
     var d={compania:'',seccion:'',asegurado:'',cuit_dni:'',poliza:'',inicio:'',fin:'',premio:'',moneda:'ARS',operacion:''};
     var aseg=pick(t,[
@@ -1294,7 +1318,7 @@ window.PDFIMP=(function(){
       var m=t.match(/Asegurado\s+\d+\s*-\s*([A-ZÁÉÍÓÚÑ][^\n]+?)(?:\s{2,}|P[oó]liza|\n|$)/); if(m)d.asegurado=clean(m[1]).replace(/\s*P[oó]liza.*$/i,'');
       var pg=t.match(/Premio\s+U\$S\s+([\d.,]+)/i); if(pg){d.premio=toNum(pg[1],'us');d.moneda='USD';}
     }
-    return d;
+    return normalizeSheet(d);
   }
 
   /* ---- Período & fechas ---- */
