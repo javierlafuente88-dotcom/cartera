@@ -727,6 +727,7 @@ function closePol(){const ov=document.getElementById('polOverlay');ov.style.disp
 document.getElementById('polClose').addEventListener('click',closePol);
 document.getElementById('polCancel').addEventListener('click',closePol);
 document.getElementById('addPol').addEventListener('click',()=>openPol('add',null));
+try{window.openPol=openPol;}catch(e){}
 async function _markEnviada(nro,on,btn){
   const p=POL.find(x=>String(x.nro)===String(nro)); if(!p)return;
   const t=new Date(); const fch=String(t.getDate()).padStart(2,'0')+'/'+String(t.getMonth()+1).padStart(2,'0')+'/'+t.getFullYear();
@@ -1181,7 +1182,7 @@ window.GAME=(function(){
 </script>
 
 <script>
-/* ===== Importador de PDF de pólizas — Grupo Lafuente ===== */
+/* ===== Importador de PDF de pólizas — Grupo Lafuente (multi-compañía) ===== */
 window.PDFIMP=(function(){
   var PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
   var PDFJS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -1232,80 +1233,66 @@ window.PDFIMP=(function(){
     return full;
   }
 
-  /* ---- Parser ---- */
-  function detect(t){
-    var tl=t.toLowerCase();
-    if(tl.indexOf('el norte')>-1) return 'EL NORTE';
-    if(tl.indexOf('swissmedical')>-1||tl.indexOf('smg compañia')>-1||tl.indexOf('smg compania')>-1) return 'SWISS MEDICAL';
-    if(tl.indexOf('riouruguay')>-1||tl.indexOf('rio uruguay')>-1) return 'RIO URUGUAY';
-    if(tl.indexOf('sancor')>-1) return 'SANCOR';
-    if(tl.indexOf('federaci')>-1&&tl.indexOf('patronal')>-1) return 'FEDERACION PATRONAL';
-    if(tl.indexOf('galiciaseguros')>-1||tl.indexOf('seguros galicia')>-1||tl.indexOf('galicia seguros')>-1) return 'GALICIA';
-    return '';
-  }
-  function g(pat,t,grp){var m=t.match(pat);return m?clean(m[grp||1]):'';}
+  /* ---- Parser genérico multi-compañía ---- */
+  var COMPS=[[/seguros\s+galicia|galiciaseguros|galicia\s+seguros|\bgalicia\b/i,'GALICIA'],[/r[ií]o\s*uruguay|riouruguay/i,'RIO URUGUAY'],[/swiss\s*medical|smg\s*comp/i,'SWISS MEDICAL'],[/el\s+norte/i,'EL NORTE'],[/int[ée]grity/i,'INTEGRITY'],[/sancor/i,'SANCOR'],[/federaci[oó]n\s+patronal/i,'FEDERACION PATRONAL'],[/la\s+segunda/i,'LA SEGUNDA'],[/mercantil\s+andina/i,'MERCANTIL ANDINA'],[/san\s+crist[oó]bal/i,'SAN CRISTOBAL'],[/zurich/i,'ZURICH'],[/allianz/i,'ALLIANZ'],[/mapfre/i,'MAPFRE'],[/la\s+caja/i,'LA CAJA'],[/meridional/i,'LA MERIDIONAL'],[/berkley/i,'BERKLEY'],[/experta/i,'EXPERTA'],[/naci[oó]n\s+seguros/i,'NACION SEGUROS'],[/provincia\s+seguros/i,'PROVINCIA'],[/rivadavia/i,'RIVADAVIA'],[/prudencia/i,'PRUDENCIA'],[/\bhdi\b/i,'HDI'],[/chubb/i,'CHUBB'],[/la\s+holando/i,'LA HOLANDO'],[/triunfo/i,'TRIUNFO'],[/or[bv]is/i,'ORBIS'],[/cr[eé]ditos\s+y\s+garant/i,'ACG']];
+  function detect(t){ for(var i=0;i<COMPS.length;i++){ if(COMPS[i][0].test(t)) return COMPS[i][1]; } var m=t.match(/(?:Aseguradora?|Compa[ñn][ií]a|Entidad Aseguradora)\s*:?\s*([A-ZÁÉÍÓÚ][\w .,&-]{3,40}?S\.?A\.?)/); return m?clean(m[1]).toUpperCase():''; }
+  function pick(t,arr){ for(var i=0;i<arr.length;i++){ var m=t.match(arr[i]); if(m){ var v=clean(m[1]); if(v) return v; } } return ''; }
+  var INS_CUIT=/^(30-?5000|30-?5001|30-?6862|33-)/;
   var MES={enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'};
-  function esDateToDMY(s){
-    var m=s&&s.match(/(\d{1,2})\s+([A-Za-zÁÉÍÓÚáéíóú]+)\s+de\s+(\d{4})/);
-    if(!m)return '';var mm=MES[m[2].toLowerCase()];if(!mm)return '';
-    return (m[1].length<2?'0'+m[1]:m[1])+'/'+mm+'/'+m[3];
-  }
-  function toNum(s,style){
-    if(s==null)return '';s=(''+s).replace(/[^\d.,]/g,'');if(!s)return '';
-    if(style==='us')s=s.replace(/,/g,'');
-    else if(style==='ar')s=s.replace(/\./g,'').replace(',','.');
-    else{
-      if(s.indexOf(',')>-1&&s.indexOf('.')>-1){ if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); }
-      else if(s.indexOf(',')>-1){ var d=s.split(',').pop(); s=(d.length===2)?s.replace(',','.'):s.replace(/,/g,''); }
-      else{ var dd=s.split('.').pop(); if(s.indexOf('.')>-1&&dd.length===3)s=s.replace(/\./g,''); }
-    }
-    var n=parseFloat(s);return isNaN(n)?'':n;
+  function esDate(s){var m=s&&s.match(/(\d{1,2})\s+([A-Za-zÁÉÍÓÚáéíóú]+)\s+de\s+(\d{4})/);if(!m)return '';var mm=MES[m[2].toLowerCase()];if(!mm)return '';return (m[1].length<2?'0'+m[1]:m[1])+'/'+mm+'/'+m[3];}
+  function normPoliza(s){ if(!s)return ''; var f=s.split(/[\/\s]/)[0]; return f.replace(/\./g,''); }
+  function toNum(s,style){ if(s==null)return '';s=(''+s).replace(/[^\d.,]/g,'');if(!s)return '';
+    if(style==='us')s=s.replace(/,/g,''); else if(style==='ar')s=s.replace(/\./g,'').replace(',','.');
+    else{ if(s.indexOf(',')>-1&&s.indexOf('.')>-1){ if(s.lastIndexOf(',')>s.lastIndexOf('.'))s=s.replace(/\./g,'').replace(',','.'); else s=s.replace(/,/g,''); } else if(s.indexOf(',')>-1){ var d=s.split(',').pop(); s=(d.length===2)?s.replace(',','.'):s.replace(/,/g,''); } else { var dd=s.split('.').pop(); if(s.indexOf('.')>-1&&dd.length===3)s=s.replace(/\./g,''); } }
+    var n=parseFloat(s);return isNaN(n)?'':n; }
+  function genericParse(t){
+    var d={compania:'',seccion:'',asegurado:'',cuit_dni:'',poliza:'',inicio:'',fin:'',premio:'',moneda:'ARS',operacion:''};
+    var aseg=pick(t,[
+      /Asegurado\s+\d{3,}\s*-\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,'&-]{3,}?)(?:\s{2,}|P[oó]liza|\n|$)/,
+      /(?:(?:^|\n)\s*|\s{2,})(?:Asegurado|Tomador|Titular)\s*:?\s+(?:\([\d.\s\/]+\)\s*)?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,'&-]{3,}?)(?:\s{2,}|Entre Calles|Documento|DNI|CUIT|Asegurado N|C[oó]d|P[oó]liza|Endoso|\n|$)/m,
+      /(?:(?:^|\n)\s*|\s{2,})Nombre\s+(?:\([\d.\s\/]+\)\s*)?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ .,'&-]{3,}?)(?:\s{2,}|Documento|DNI|CUIT|\n|$)/m
+    ]);
+    if(/^(SEGUROS|RIO URUGUAY|COOPERATIVA|LA |SAN |ASEGURAD)/.test(aseg)&&aseg.length>22) aseg='';
+    d.asegurado=aseg;
+    var re=/(?:C\.?U\.?I\.?[TL]\.?|CUIL|DNI\/CUI[TL]|Documento|DNI)\s*(?:N[°º]|Nro\.?)?\s*[:.\-]?\s*(\d{2}-?\d{7,8}-?\d)\b/gi,mm,cuits=[];
+    while((mm=re.exec(t))){ cuits.push(mm[1].replace(/(\d{2})-?(\d{7,8})-?(\d)/,'$1-$2-$3')); }
+    var cuit=''; for(var ci=0;ci<cuits.length;ci++){ if(!INS_CUIT.test(cuits[ci])){cuit=cuits[ci];break;} }
+    if(!cuit){ var dm=t.match(/(?:DNI|Documento|D\.N\.I\.?)\s*[:.\-]?\s*(\d{7,8})\b/i); if(dm)cuit=dm[1]; }
+    d.cuit_dni=cuit;
+    d.poliza=normPoliza(pick(t,[
+      /P[oó]liza\s*[-\s]?\s*Endoso\s*:?\s*(\d[\d.]*)/i,
+      /(?:^|\n|\s{2,})(?:P[oó]liza|Poliza)\s*(?:N[°º]|Nro\.?)?\s*[:.\-]?\s+(\d[\d.\/ ]*)/,
+      /(?:^|\n|\s{2,})N[uú]mero\s*[:.\-]?\s+(\d[\d.]{3,})/,
+      /P[oó]liza\s*:\s*(\d[\d.\/ ]{3,})/
+    ]));
+    d.seccion=pick(t,[
+      /(?:^|\n|\s{2,})(?:Secci[oó]n|Ramo|Rama)\s*[:.\-]?\s+(?:\d+\s*[-.]?\s*)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ ]{2,}?)(?:\s{2,}|P[oó]liza|Poliza|Endoso|Operaci|\n|$)/m,
+      /Secci[oó]n\s*:\s+(?:\d+\s*[-.]?\s*)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ ]{2,}?)(?:\s{2,}|P[oó]liza|Poliza|Endoso|\n|$)/
+    ]);
+    d.inicio=pick(t,[
+      /Vigencia\s*Desde\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i,
+      /(?:^|\n|\s{2,})Desde\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i
+    ]);
+    d.fin=pick(t,[
+      /Vigencia\s*Hasta\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i,
+      /(?:^|\n|\s{2,})Hasta\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i
+    ]);
+    if(!d.inicio){ var s1=esDate(pick(t,[/desde[^\n]*?del\s+(\d{1,2}\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+de\s+\d{4})/i])); if(s1)d.inicio=s1; }
+    if(!d.fin){ var s2=esDate(pick(t,[/hasta[^\n]*?del\s+(\d{1,2}\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+de\s+\d{4})/i])); if(s2)d.fin=s2; }
+    if(!d.inicio||!d.fin){ var ds=[],dr=/\b(\d{2}\/\d{2}\/\d{4})\b/g,md; while((md=dr.exec(t)))ds.push(md[1]); if(!d.inicio&&ds[0])d.inicio=ds[0]; if(!d.fin&&ds[1]&&ds[1]!==d.inicio)d.fin=ds[1]; }
+    function amtInLines(reLabel){ var best='',bu=false; t.split('\n').forEach(function(l){ if(reLabel.test(l)){ var nums=[],am,ar=/(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\d{4,}(?:[.,]\d{2})?)/g; while((am=ar.exec(l))){ var x=am[1]; if(/[.,]/.test(x)||x.length>=4)nums.push(x); } if(nums.length){ var cand=nums[nums.length-1]; if(!best||cand.length>=best.length){best=cand; bu=/U\$S|US\$|USD|d[oó]lar/i.test(l);} } } }); return {amt:best,usd:bu}; }
+    var pr=amtInLines(/\bPremio\b/i); if(!pr.amt)pr=amtInLines(/\bPrima\b/i);
+    if(pr.amt){ d.premio=toNum(pr.amt, pr.usd?'us':undefined); if(pr.usd)d.moneda='USD'; }
+    d.operacion=pick(t,[/(?:Operaci[oó]n|Motivo del Endoso|Movimiento|Tipo de emisi[oó]n)\s*:?\s*((?:Nueva|Renovaci[oó]n(?:\s+autom[aá]tica)?|Renueva|Adicional|Endoso|Emisi[oó]n de Poliza|Emisi[oó]n|Anulaci[oó]n|Modificaci[oó]n|Pr[oó]rroga|Rehabilitaci[oó]n|Cancelaci[oó]n|REN)\b[A-Za-zÁÉÍÓÚ ]*?)(?:\s{2,}|\d{3,}|\n|$)/i]);
+    return d;
   }
   function parse(t){
-    var comp=detect(t);
-    var d={compania:comp,seccion:'',asegurado:'',cuit_dni:'',poliza:'',inicio:'',fin:'',premio:'',moneda:'ARS',operacion:''};
+    var d=genericParse(t);
+    var comp=detect(t); if(comp)d.compania=comp;
+    if(comp==='RIO URUGUAY'){ var pm=t.match(/P[oó]liza:\s*([\d:]+)/); if(pm)d.poliza=pm[1].split(':').pop(); }
     if(comp==='GALICIA'){
-      d.seccion=g(/Secci[oó]n\s+([A-Za-zÁÉÍÓÚñÑ ]+?)\s{2,}/,t)||g(/Secci[oó]n\s+([A-Za-zÁÉÍÓÚñÑ ]{3,})/,t);
-      var m=t.match(/Asegurado\s+\d+\s*-\s*(.+)/); if(m)d.asegurado=clean(m[1]);
-      d.asegurado=d.asegurado.replace(/\s*P[oó]liza\s*\d+.*$/i,'').trim();
-      d.cuit_dni=g(/CUIT:\s*([\d.\-]+)/,t);
-      d.poliza=g(/P[oó]liza\s+(\d{4,})/,t);
-      d.operacion=g(/Operaci[oó]n\s+([A-Za-zÁÉÍÓÚ]+)/,t);
-      d.inicio=g(/Vigencia Desde\s+(\d{2}\/\d{2}\/\d{4})/,t);
-      d.fin=g(/Vigencia Hasta\s+(\d{2}\/\d{2}\/\d{4})/,t);
-      var pm=t.match(/Premio\s+U\$S\s+([\d.,]+)/i); if(pm){d.premio=toNum(pm[1],'us');d.moneda='USD';}
-      else{pm=t.match(/Premio\s+\$?\s*([\d.,]+)/i);if(pm)d.premio=toNum(pm[1],'us');}
-    } else if(comp==='RIO URUGUAY'){
-      d.seccion=g(/Secci[oó]n:\s*([A-ZÁÉÍÓÚ]+)/,t);
-      d.asegurado=g(/Asegurado:\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]+?)(?:\s{2,}|DNI|CUIT|\r?\n|$)/,t);
-      d.cuit_dni=g(/DNI\/CU[A-Z]+:\s*([\d.\-]+)/,t);
-      var pol=g(/P[oó]liza:\s*([\d:]+)/,t); if(pol)d.poliza=pol.split(':').pop();
-      d.operacion=g(/Motivo del Endoso:\s*([A-Za-zÁÉÍÓÚ ]+)/,t);
-      var pr=t.match(/Premio:\s*\$\s*([\d.,]+)/i); if(pr)d.premio=toNum(pr[1],'ar');
-    } else if(comp==='SWISS MEDICAL'){
-      d.asegurado=g(/Asegurado:\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]+?)(?:\s{2,}|Cod|DNI|Cuit|\r?\n|$)/,t);
-      d.cuit_dni=g(/Cuit Nro\.?:\s*([\d.\-]+)/,t)||g(/DNI\s*-\s*(\d+)/,t);
-      d.poliza=g(/P[oó]liza-?Endoso:\s*(\d+)/,t);
-      d.operacion=g(/Operaci[oó]n:\s*([A-Za-zÁÉÍÓÚ ]+)/,t);
-      d.inicio=esDateToDMY(g(/desde las [\d:\.]+\s*hs\.?\s*del\s+(\d{1,2}\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+de\s+\d{4})/,t));
-      var ps=t.match(/Premio:\s*\$\s*([\d.,]+)/i); if(ps)d.premio=toNum(ps[1],'us');
-      d.seccion=g(/Secci[oó]n:\s*([A-Za-zÁÉÍÓÚ ]{3,})/,t);
-    } else if(comp==='EL NORTE'){
-      d.seccion=g(/Secci[oó]n\s+(\d+\s*-\s*[A-ZÁÉÍÓÚ ]+?)\s{2,}/,t)||g(/Secci[oó]n\s+(\d+\s*-\s*[A-ZÁÉÍÓÚ ]+)/,t);
-      d.asegurado=g(/Nombre\s+(?:\([\d.]+\)\s*)?([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]+?)(?:\s{2,}|\r?\n|$)/,t);
-      d.poliza=g(/N[uú]mero\s+([\d.]{4,})/,t);
-      d.cuit_dni=g(/Documento\s+(?:CUIT|DNI)\s*([\d.\-]+)/,t);
-      d.inicio=g(/Vigencia desde\s+[\d:]+\s*del\s+(\d{2}\/\d{2}\/\d{4})/,t);
-      d.fin=g(/Vigencia hasta\s+[\d:]+\s*del\s+(\d{2}\/\d{2}\/\d{4})/,t);
-      d.operacion=g(/Suplemento\s+(\d+\s*-\s*[A-ZÁÉÍÓÚ /]+?)\s{2,}/,t);
-    } else {
-      d.asegurado=g(/(?:Asegurado|Nombre|Tomador)\s*:?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,\.]{4,}?)(?:\s{2,}|\r?\n|$)/,t);
-      d.cuit_dni=g(/(?:CUIT|CUIL|DNI)[^\d]{0,8}(\d{2}[\d.\-]{6,})/,t);
-      d.poliza=g(/(?:P[oó]liza|N[uú]mero)\s*[:\-]?\s*([\d.\-]{4,})/,t);
-      d.seccion=g(/Secci[oó]n\s*:?\s*([A-Za-zÁÉÍÓÚ0-9 \-]{3,}?)(?:\s{2,}|\r?\n|$)/,t);
-      d.inicio=g(/Vigencia\s+desde[^\d]*(\d{2}\/\d{2}\/\d{4})/,t);
-      d.fin=g(/Vigencia\s+hasta[^\d]*(\d{2}\/\d{2}\/\d{4})/,t);
-      var pg=t.match(/(?:Premio|Prima)[^\d]{0,20}\$?\s*([\d.,]{4,})/i); if(pg)d.premio=toNum(pg[1]);
+      var m=t.match(/Asegurado\s+\d+\s*-\s*([A-ZÁÉÍÓÚÑ][^\n]+?)(?:\s{2,}|P[oó]liza|\n|$)/); if(m)d.asegurado=clean(m[1]).replace(/\s*P[oó]liza.*$/i,'');
+      var pg=t.match(/Premio\s+U\$S\s+([\d.,]+)/i); if(pg){d.premio=toNum(pg[1],'us');d.moneda='USD';}
     }
     return d;
   }
@@ -1323,7 +1310,7 @@ window.PDFIMP=(function(){
 
   function setF(k,v){var el=document.querySelector('#polForm [data-pf="'+k+'"]');if(el&&v!=null&&v!==''){el.value=v;}}
   function fill(d){
-    if(!document.getElementById('polForm')||!document.querySelector('#polForm [data-pf]')){ if(typeof openPol==='function')openPol('add',null); }
+    if(!document.getElementById('polForm')||!document.querySelector('#polForm [data-pf]')){ if(typeof window.openPol==='function')window.openPol('add',null); }
     setF('Asegurado',d.asegurado);
     setF('Cuit o Dni',d.cuit_dni);
     setF('Compañia',d.compania);
