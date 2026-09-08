@@ -1284,16 +1284,16 @@ window.PDFIMP=(function(){
       /Secci[oó]n\s*:\s+(?:\d+\s*[-.]?\s*)?([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑ ]{2,}?)(?:\s{2,}|P[oó]liza|Poliza|Endoso|\n|$)/
     ]);
     d.inicio=pick(t,[
-      /Vigencia\s*Desde\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i,
-      /(?:^|\n|\s{2,})Desde\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i
+      /Vigencia\s*Desde\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}[\/-]\d{2}[\/-]\d{4})/i,
+      /(?:^|\n|\s{2,})Desde\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}[\/-]\d{2}[\/-]\d{4})/i
     ]);
     d.fin=pick(t,[
-      /Vigencia\s*Hasta\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i,
-      /(?:^|\n|\s{2,})Hasta\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}\/\d{2}\/\d{4})/i
+      /Vigencia\s*Hasta\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}[\/-]\d{2}[\/-]\d{4})/i,
+      /(?:^|\n|\s{2,})Hasta\s*:?\s*(?:[\d:]+\s*(?:hs\.?)?\s*(?:del)?\s*)?(\d{2}[\/-]\d{2}[\/-]\d{4})/i
     ]);
     if(!d.inicio){ var s1=esDate(pick(t,[/desde[^\n]*?del\s+(\d{1,2}\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+de\s+\d{4})/i])); if(s1)d.inicio=s1; }
     if(!d.fin){ var s2=esDate(pick(t,[/hasta[^\n]*?del\s+(\d{1,2}\s+[A-Za-zÁÉÍÓÚáéíóú]+\s+de\s+\d{4})/i])); if(s2)d.fin=s2; }
-    if(!d.inicio||!d.fin){ var ds=[],dr=/\b(\d{2}\/\d{2}\/\d{4})\b/g,md; while((md=dr.exec(t)))ds.push(md[1]); if(!d.inicio&&ds[0])d.inicio=ds[0]; if(!d.fin&&ds[1]&&ds[1]!==d.inicio)d.fin=ds[1]; }
+    if(!d.inicio||!d.fin){ var ds=[],dr=/\b(\d{2}[\/-]\d{2}[\/-]\d{4})\b/g,md; while((md=dr.exec(t)))ds.push(md[1].replace(/-/g,'/')); if(!d.inicio&&ds[0])d.inicio=ds[0]; if(!d.fin&&ds[1]&&ds[1]!==d.inicio)d.fin=ds[1]; }
     function amtInLines(reLabel){ var best='',bu=false; t.split('\n').forEach(function(l){ if(reLabel.test(l)){ var nums=[],am,ar=/(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?|\d{4,}(?:[.,]\d{2})?)/g; while((am=ar.exec(l))){ var x=am[1]; if(/[.,]/.test(x)||x.length>=4)nums.push(x); } if(nums.length){ var cand=nums[nums.length-1]; if(!best||cand.length>=best.length){best=cand; bu=/U\$S|US\$|USD|d[oó]lar/i.test(l);} } } }); return {amt:best,usd:bu}; }
     var pr=amtInLines(/\bPremio\b/i); if(!pr.amt)pr=amtInLines(/\bPrima\b/i);
     if(pr.amt){ d.premio=toNum(pr.amt, pr.usd?'us':undefined); if(pr.usd)d.moneda='USD'; }
@@ -1301,6 +1301,10 @@ window.PDFIMP=(function(){
     function _amtAr(str){ return str.match(/\d{1,3}(?:\.\d{3})*,\d{2}/g)||str.match(/\d{4,}(?:,\d{2})?/g); }
     if(d.premio===''||d.premio==null){ for(var pi2=0;pi2<_ln.length;pi2++){ if(/Prima\b/i.test(_ln[pi2])&&/\bPremio\b/i.test(_ln[pi2])){ for(var pk=pi2+1;pk<Math.min(pi2+3,_ln.length);pk++){ var pa=_amtAr(_ln[pk]); if(pa&&pa.length){ d.premio=toNum(pa[pa.length-1],'ar'); break; } } break; } } }
     for(var qi=0;qi<_ln.length;qi++){ if(/(?:Cuota|Nro)\s+Vencimiento\s+Importe/i.test(_ln[qi])){ for(var qk=qi+1;qk<Math.min(qi+5,_ln.length);qk++){ var qa=_amtAr(_ln[qk]); if(qa&&qa.length){ d.cuota=toNum(qa[0],'ar'); break; } } break; } }
+    if(d.inicio)d.inicio=d.inicio.replace(/-/g,'/'); if(d.fin)d.fin=d.fin.replace(/-/g,'/');
+    if(!d.seccion){ var _hd=t.slice(0,1200); var _kw=_hd.match(/MALA PRAXIS|RESPONSABILIDAD CIVIL|ACCIDENTES PERSONALES|MOTOVEH[IÍ]CULOS|AUTOMOTOR(?:ES)?|AUTOM[OÓ]VILES?|INTEGRAL DE COMERCIO|SEGURO T[EÉ]CNICO|TRANSPORTES?|INCENDIO|CAUCI[OÓ]N|CONSORCIO|HOGAR/i); if(_kw)d.seccion=_kw[0]; }
+    if((d.cuota===''||d.cuota==null)&&d.premio){ var _nc=t.match(/Cantidad de cuotas\s*:?\s*(\d{1,2})/i)||t.match(/Total\s+(\d{1,2})\s+Cuotas?/i); if(_nc){ var _n=parseInt(_nc[1],10); if(_n>0&&_n<=60) d.cuota=Math.round(d.premio/_n*100)/100; } }
+    if(d.premio&&d.moneda!=='USD'&&/(?:Cuotas?\s*:?\s*U\$S|Importe\s+U\$S|Total\s+\d+\s+Cuotas?\s*:?\s*U\$S)/i.test(t)) d.moneda='USD';
     d.operacion=pick(t,[/(?:Operaci[oó]n|Motivo del Endoso|Movimiento|Tipo de emisi[oó]n)\s*:?\s*((?:Nueva|Renovaci[oó]n(?:\s+autom[aá]tica)?|Renueva|Adicional|Endoso|Emisi[oó]n de Poliza|Emisi[oó]n|Anulaci[oó]n|Modificaci[oó]n|Pr[oó]rroga|Rehabilitaci[oó]n|Cancelaci[oó]n|REN)\b[A-Za-zÁÉÍÓÚ ]*?)(?:\s{2,}|\d{3,}|\n|$)/i]);
     return d;
   }
