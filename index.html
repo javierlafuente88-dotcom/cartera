@@ -1234,8 +1234,13 @@ window.PDFIMP=(function(){
   }
 
   /* ---- Parser genérico multi-compañía ---- */
-  var COMPS=[[/seguros\s+galicia|galiciaseguros|galicia\s+seguros|\bgalicia\b/i,'GALICIA'],[/r[ií]o\s*uruguay|riouruguay/i,'RIO URUGUAY'],[/swiss\s*medical|smg\s*comp/i,'SWISS MEDICAL'],[/el\s+norte/i,'EL NORTE'],[/int[ée]grity/i,'INTEGRITY'],[/sancor/i,'SANCOR'],[/federaci[oó]n\s+patronal/i,'FEDERACION PATRONAL'],[/la\s+segunda/i,'LA SEGUNDA'],[/mercantil\s+andina/i,'MERCANTIL ANDINA'],[/san\s+crist[oó]bal/i,'SAN CRISTOBAL'],[/zurich/i,'ZURICH'],[/allianz/i,'ALLIANZ'],[/mapfre/i,'MAPFRE'],[/la\s+caja/i,'LA CAJA'],[/meridional/i,'LA MERIDIONAL'],[/berkley/i,'BERKLEY'],[/experta/i,'EXPERTA'],[/naci[oó]n\s+seguros/i,'NACION SEGUROS'],[/provincia\s+seguros/i,'PROVINCIA'],[/rivadavia/i,'RIVADAVIA'],[/prudencia/i,'PRUDENCIA'],[/\bhdi\b/i,'HDI'],[/chubb/i,'CHUBB'],[/la\s+holando/i,'LA HOLANDO'],[/triunfo/i,'TRIUNFO'],[/or[bv]is/i,'ORBIS'],[/cr[eé]ditos\s+y\s+garant/i,'ACG']];
-  function detect(t){ for(var i=0;i<COMPS.length;i++){ if(COMPS[i][0].test(t)) return COMPS[i][1]; } var m=t.match(/(?:Aseguradora?|Compa[ñn][ií]a|Entidad Aseguradora)\s*:?\s*([A-ZÁÉÍÓÚ][\w .,&-]{3,40}?S\.?A\.?)/); return m?clean(m[1]).toUpperCase():''; }
+  var COMPS=[[/seguros\s+galicia|galiciaseguros|galicia\s+seguros/i,'GALICIA'],[/r[ií]o\s*uruguay|riouruguay/i,'RIO URUGUAY'],[/swiss\s*medical|smg\s*comp/i,'SWISS MEDICAL'],[/el\s+norte/i,'EL NORTE'],[/int[ée]grity/i,'INTEGRITY'],[/sancor/i,'SANCOR'],[/federaci[oó]n\s+patronal/i,'FEDERACION PATRONAL'],[/la\s+segunda/i,'LA SEGUNDA'],[/mercantil\s+andina/i,'MERCANTIL ANDINA'],[/san\s+crist[oó]bal/i,'SAN CRISTOBAL'],[/zurich/i,'ZURICH'],[/allianz/i,'ALLIANZ'],[/mapfre/i,'MAPFRE'],[/la\s+caja/i,'LA CAJA'],[/meridional/i,'LA MERIDIONAL'],[/berkley/i,'BERKLEY'],[/experta/i,'EXPERTA'],[/naci[oó]n\s+seguros/i,'NACION SEGUROS'],[/provincia\s+seguros/i,'PROVINCIA'],[/rivadavia/i,'RIVADAVIA'],[/prudencia/i,'PRUDENCIA'],[/\bhdi\b/i,'HDI'],[/chubb/i,'CHUBB'],[/la\s+holando/i,'LA HOLANDO'],[/triunfo/i,'TRIUNFO'],[/or[bv]is/i,'ORBIS'],[/cr[eé]ditos\s+y\s+garant/i,'ACG']];
+  var INS_CUITS=[['30500000127','GALICIA'],['30500061711','RIO URUGUAY'],['30500040455','EL NORTE'],['30500031960','SWISS MEDICAL'],['30704961983','INTEGRITY'],['30500064478','ACG']];
+  function detect(t){
+    for(var j=0;j<INS_CUITS.length;j++){ var d=INS_CUITS[j][0]; var re=new RegExp(d.slice(0,2)+'-?'+d.slice(2,10)+'-?'+d.slice(10)); if(re.test(t)) return INS_CUITS[j][1]; }
+    for(var i=0;i<COMPS.length;i++){ if(COMPS[i][0].test(t)) return COMPS[i][1]; }
+    var m=t.match(/(?:Aseguradora?|Compa[ñn][ií]a|Entidad Aseguradora)\s*:?\s*([A-ZÁÉÍÓÚ][\w .,&-]{3,40}?S\.?A\.?)/); return m?clean(m[1]).toUpperCase():'';
+  }
   function pick(t,arr){ for(var i=0;i<arr.length;i++){ var m=t.match(arr[i]); if(m){ var v=clean(m[1]); if(v) return v; } } return ''; }
   var INS_CUIT=/^(30-?5000|30-?5001|30-?6862|33-)/;
   var MES={enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',setiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'};
