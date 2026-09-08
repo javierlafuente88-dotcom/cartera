@@ -723,7 +723,13 @@ function openPol(mode,p){
   document.getElementById('polMsg').textContent='';
   const ov=document.getElementById('polOverlay');ov.classList.remove('hidden');ov.style.display='flex';
 }
-function closePol(){const ov=document.getElementById('polOverlay');ov.style.display='none';ov.classList.add('hidden');}
+function closePol(){const ov=document.getElementById('polOverlay');ov.style.display='none';ov.classList.add('hidden');
+  try{ document.querySelectorAll('#polForm [data-pf]').forEach(function(el){ if(el.tagName==='SELECT')el.selectedIndex=0; else el.value=''; });
+    var st=document.getElementById('polPdfStatus'); if(st)st.textContent='';
+    var pm=document.getElementById('polMsg'); if(pm)pm.innerHTML='';
+    var pf=document.getElementById('polPdfInp'); if(pf)pf.value='';
+  }catch(e){}
+}
 document.getElementById('polClose').addEventListener('click',closePol);
 document.getElementById('polCancel').addEventListener('click',closePol);
 document.getElementById('addPol').addEventListener('click',()=>openPol('add',null));
