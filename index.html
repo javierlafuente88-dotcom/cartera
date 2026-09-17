@@ -347,6 +347,7 @@ async function loadData(){
     try{ const cm=await gviz('Comparativas'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm.filter(o=>String((o.ASEGURADO!=null?o.ASEGURADO:'')+(o.POLIZA!=null?o.POLIZA:'')+(o.PREMIONUEVO!=null?o.PREMIONUEVO:'')).trim()!==''):[]; }catch(e){ DATA.comparativas=[]; }
     var lm=document.getElementById('loadmsg'); if(lm) lm.remove();
     boot();
+    (function pingInit(n){ bk({action:'ping'}).then(function(r){ if((!r||!r.ok)&&n>0) setTimeout(function(){pingInit(n-1);}, 4000); }); })(4);
   }catch(e){
     document.body.insertAdjacentHTML('afterbegin','<div style="padding:18px;background:#fff3bf;color:#a07800;font-family:sans-serif">No pude leer tu planilla CARTERA. Verificá que esté compartida como <b>"Cualquiera con el enlace: Lector"</b> y que el dashboard esté hosteado. Detalle: '+(e&&e.message||e)+'</div>');
   }
