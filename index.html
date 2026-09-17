@@ -249,7 +249,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <div class="hh"><h2 id="polTitle" style="margin:0">Editar póliza</h2><button class="btn ghost" id="polClose">✕ Cerrar</button></div>
     <div class="form" id="polForm" style="margin-top:8px"></div>
     <div id="polMsg" style="margin-top:10px;font-size:13px;min-height:16px"></div>
-    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" id="polSave">Guardar en el sheet</button><button class="btn sec" id="polCancel">Cancelar</button></div>
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button class="btn" id="polSave">Guardar en el sheet</button><button class="btn sec" id="polCancel">Cancelar</button><button class="btn" id="polBaja" style="display:none;margin-left:auto;background:#5b2130;border-color:#7a2a3a;color:#ffd7dd">🚫 Dar de baja (anular)</button></div>
   </div>
 </div>
 
@@ -337,7 +337,7 @@ async function loadData(){
       if(!cli && !comp && !nro) return;
       if(cli && !cmap[cli]) cmap[cli]={id:cli,ape:cli,nom:'',doc:doc,tipo:'',tel:tel,email:email,dir:dir,loc:loc,nac:cumple,est:'activo'};
       const ven=isoG(b.FINDEVIGENCIA);
-      P.push({idc:cli,cli:cli,doc:doc,tipo:'',comp:comp,codigo:String(b.CODIGO||'').trim(),ramo:String(b.SECCION||'').trim(),periodo:String(b.PERIODO||''),nro:nro,ini:isoG(b.INCIOVIGENCIA),ven:ven,pa:num(b.PREMIO),pm:num(b.CUOTAMENSUAL),est:(ven&&ven<_tiso?'vencida':'vigente'),estRaw:String(b.ABIERTOOCERRADO||''),pat:'',obs:String(b.DESCRIPCION||''),tel:tel,email:email,dir:dir,loc:loc,enviada:String(b.ENVIADA||'').trim().toUpperCase(),fenvio:isoG(b.FECHAENVIO)});
+      P.push({idc:cli,cli:cli,doc:doc,tipo:'',comp:comp,codigo:String(b.CODIGO||'').trim(),ramo:String(b.SECCION||'').trim(),periodo:String(b.PERIODO||''),nro:nro,ini:isoG(b.INCIOVIGENCIA),ven:ven,pa:num(b.PREMIO),pm:num(b.CUOTAMENSUAL),est:(ven&&ven<_tiso?'vencida':'vigente'),anulada:/anul|baja/i.test(String(b.ESTADO||'')),estRaw:String(b.ABIERTOOCERRADO||''),pat:'',obs:String(b.DESCRIPCION||''),tel:tel,email:email,dir:dir,loc:loc,enviada:String(b.ENVIADA||'').trim().toUpperCase(),fenvio:isoG(b.FECHAENVIO)});
     });
     const C=Object.values(cmap);
     const S=si.filter(s=>String(s.ASEGURADO||s.POLIZA||'').trim()!=='').map((s,i)=>{const est=String(s.ESTADO||'').trim().toLowerCase();return {id:'S'+(i+1),fecha:isoG(s.FECHASINIESTRO),nro:s.NSINIESTRO!=null?String(s.NSINIESTRO):'',pol:s.POLIZA!=null?String(s.POLIZA):'',pat:s.PATENTE||'',cli:String(s.ASEGURADO||''),idc:String(s.ASEGURADO||''),comp:String(s.COMPANIA||'').toUpperCase(),tipo:s.TIPO||'',denuncia:isoG(s.FECHADEDENUNCIA),est:est||'sin estado',estRaw:String(s.ESTADO||''),abierto:!/termin/.test(est),obs:String(s.OBSERVACIONES||'')};});
@@ -352,7 +352,7 @@ async function loadData(){
   }
 }
 function boot(){
-const POL = DATA.polizas.map(p=>({...p, comp:(p.comp||'').trim().toUpperCase()}));
+const POL = DATA.polizas.filter(p=>!p.anulada).map(p=>({...p, comp:(p.comp||'').trim().toUpperCase()}));
 const SIN = DATA.siniestros||[];
 // overrides editables (persisten)
 const LS='cartera_cli_overrides';
@@ -704,6 +704,7 @@ function openPol(mode,p){
   polMode=mode; polOrigNro=(p&&p.nro)||'';
   const v=p?{'Asegurado':p.cli||'','Cuit o Dni':p.doc||'','Compañia':p.comp||'','Codigo':p.codigo||'','Seccion':p.ramo||'','Periodo':p.periodo||'','Poliza':p.nro||'','Incio vigencia':p.ini||'','Fin de Vigencia':p.ven||'','Premio':(p.pa!=null?p.pa:''),'Cuota mensual':(p.pm!=null?p.pm:''),'Descripcion':p.obs||''}:{};
   document.getElementById('polTitle').textContent=mode==='add'?'Nueva póliza':'Editar póliza';
+  var _pbj=document.getElementById('polBaja'); if(_pbj)_pbj.style.display=(mode==='edit'?'':'none');
   let html='';
   POLFIELDS.forEach(fl=>{
     const val=String(v[fl.k]==null?'':v[fl.k]).replace(/"/g,'&quot;');
@@ -732,6 +733,17 @@ function closePol(){const ov=document.getElementById('polOverlay');ov.style.disp
 }
 document.getElementById('polClose').addEventListener('click',closePol);
 document.getElementById('polCancel').addEventListener('click',closePol);
+(function(){var _b=document.getElementById('polBaja'); if(_b)_b.addEventListener('click',function(){_anularPoliza(polOrigNro);});})();
+async function _anularPoliza(nro){
+  if(!nro)return;
+  if(!confirm('¿Dar de baja (anular) la póliza '+nro+'?\n\nSe va a ocultar del listado, pero la fila y los datos del cliente quedan guardados en la planilla.'))return;
+  const msg=document.getElementById('polMsg'); if(msg)msg.innerHTML='Anulando…';
+  if(!BK_OK){await bk({action:'ping'});}
+  const r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:nro,fields:JSON.stringify({'Estado':'ANULADA'})});
+  if(r&&r.ok&&r.changed>0){ const i=POL.findIndex(x=>String(x.nro)===String(nro)); if(i>=0)POL.splice(i,1); closePol(); render(); }
+  else if(r&&r.ok&&r.matched>0&&r.changed===0){ if(msg)msg.innerHTML='<span style="color:#ffcf7a">Falta la columna. Agregá un encabezado <b>Estado</b> en CARTERA COMPLETA (una sola vez) y volvé a intentar.</span>'; }
+  else { if(msg)msg.innerHTML='<span style="color:#ff8585">No se pudo anular ('+((r&&r.error)||'sin conexión')+').</span>'; }
+}
 document.getElementById('addPol').addEventListener('click',()=>openPol('add',null));
 try{window.openPol=openPol;}catch(e){}
 async function _markEnviada(nro,on,btn){
@@ -1433,6 +1445,14 @@ window.PDFIMP=(function(){
 })();
 </script>
 
-<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){
+  var reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){ if(reloaded)return; reloaded=true; location.reload(); });
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(function(reg){
+    reg.update();
+    setInterval(function(){ reg.update(); }, 60000);
+    reg.addEventListener('updatefound',function(){ var nw=reg.installing; if(nw){ nw.addEventListener('statechange',function(){ if(nw.state==='installed' && navigator.serviceWorker.controller){ if(reg.waiting)reg.waiting.postMessage('skipWaiting'); } }); } });
+  }).catch(function(){});
+});}</script>
 </body>
 </html>
