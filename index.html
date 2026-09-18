@@ -1372,7 +1372,7 @@ window.PDFIMP=(function(){
         if(U.indexOf('TOMADOR')>-1&&U.indexOf('RAMO')>-1){ var m=mkmap(i); var to=val(m,'TOMADOR'); if(to)d.asegurado=to; var ra=val(m,'RAMO'); if(ra)d.seccion=ra; }
         if(U.indexOf('VIGENCIA DESDE')>-1){ var m2=mkmap(i); var vd=dte(val(m2,'VIGENCIA DESDE')); if(vd)d.inicio=vd; var dn=(val(m2,'D.N.I')||val(m2,'DNI')).replace(/\D/g,''); if(dn.length>=7&&dn.length<=11)d.cuit_dni=dn; }
         if(U.indexOf('P\u00d3LIZA')>-1&&U.indexOf('VIGENCIA HASTA')>-1){ var m3=mkmap(i); var po=val(m3,'P\u00d3LIZA')||val(m3,'POLIZA'); if(po)d.poliza=clean(po); var vh=dte(val(m3,'VIGENCIA HASTA')); if(vh)d.fin=vh; }
-        if(U.indexOf('CONCEPTO')>-1&&U.indexOf('PRORROG')>-1){ var m4=mkmap(i); var co=val(m4,'CONCEPTO'); if(co&&/[A-Za-z]/.test(co))d.operacion=co; }
+        if(U.indexOf('CONCEPTO')>-1&&U.indexOf('PRORROG')>-1){ var m4=mkmap(i); var co=val(m4,'CONCEPTO'); if(co&&/[A-Za-z]/.test(co))d.operacion=co; var ph=dte(val(m4,'PRORROG')); if(ph)d.fin=ph; }
       }
     }
     return normalizeSheet(d);
