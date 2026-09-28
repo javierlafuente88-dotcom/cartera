@@ -337,7 +337,7 @@ async function loadData(){
       if(!cli && !comp && !nro) return;
       if(cli && !cmap[cli]) cmap[cli]={id:cli,ape:cli,nom:'',doc:doc,tipo:'',tel:tel,email:email,dir:dir,loc:loc,nac:cumple,est:'activo'};
       const ven=isoG(b.FINDEVIGENCIA);
-      P.push({idc:cli,cli:cli,doc:doc,tipo:'',comp:comp,codigo:String(b.CODIGO||'').trim(),ramo:String(b.SECCION||'').trim(),periodo:String(b.PERIODO||''),nro:nro,ini:isoG(b.INCIOVIGENCIA),ven:ven,pa:num(b.PREMIO),pm:num(b.CUOTAMENSUAL),est:(ven&&ven<_tiso?'vencida':'vigente'),anulada:/anul|baja/i.test(String(b.ESTADO||'')),estRaw:String(b.ABIERTOOCERRADO||''),pat:'',obs:String(b.DESCRIPCION||''),tel:tel,email:email,dir:dir,loc:loc,enviada:String(b.ENVIADA||'').trim().toUpperCase(),fenvio:isoG(b.FECHAENVIO)});
+      P.push({idc:cli,cli:cli,doc:doc,tipo:'',comp:comp,codigo:String(b.CODIGO||'').trim(),ramo:String(b.SECCION||'').trim(),periodo:String(b.PERIODO||''),nro:nro,ini:isoG(b.INCIOVIGENCIA),ven:ven,pa:num(b.PREMIO),pm:num(b.CUOTAMENSUAL),est:(ven&&ven<_tiso?'vencida':'vigente'),_id:(b.ID!=null?String(b.ID):''),anulada:/anul|baja/i.test(String(b.ESTADO||'')),estRaw:String(b.ABIERTOOCERRADO||''),pat:'',obs:String(b.DESCRIPCION||''),tel:tel,email:email,dir:dir,loc:loc,enviada:String(b.ENVIADA||'').trim().toUpperCase(),fenvio:isoG(b.FECHAENVIO)});
     });
     const C=Object.values(cmap);
     const S=si.filter(s=>String(s.ASEGURADO||s.POLIZA||'').trim()!=='').map((s,i)=>{const est=String(s.ESTADO||'').trim().toLowerCase();return {id:'S'+(i+1),fecha:isoG(s.FECHASINIESTRO),nro:s.NSINIESTRO!=null?String(s.NSINIESTRO):'',pol:s.POLIZA!=null?String(s.POLIZA):'',pat:s.PATENTE||'',cli:String(s.ASEGURADO||''),idc:String(s.ASEGURADO||''),comp:String(s.COMPANIA||'').toUpperCase(),tipo:s.TIPO||'',denuncia:isoG(s.FECHADEDENUNCIA),est:est||'sin estado',estRaw:String(s.ESTADO||''),abierto:!/termin/.test(est),obs:String(s.OBSERVACIONES||'')};});
@@ -699,10 +699,10 @@ const POLFIELDS=[
  {k:'Cuota mensual',l:'Cuota mensual',t:'num'},
  {k:'Descripcion',l:'Descripción',t:'text'}
 ];
-let polMode='edit', polOrigNro='';
+let polMode='edit', polOrigNro='', polOrigId='';
 function _dl(id,arr){return '<datalist id="'+id+'">'+arr.map(x=>'<option value="'+String(x).replace(/"/g,'&quot;')+'"></option>').join('')+'</datalist>';}
 function openPol(mode,p){
-  polMode=mode; polOrigNro=(p&&p.nro)||'';
+  polMode=mode; polOrigNro=(p&&p.nro)||''; polOrigId=(p&&p._id)||'';
   const v=p?{'Asegurado':p.cli||'','Cuit o Dni':p.doc||'','Compañia':p.comp||'','Codigo':p.codigo||'','Seccion':p.ramo||'','Periodo':p.periodo||'','Poliza':p.nro||'','Incio vigencia':p.ini||'','Fin de Vigencia':p.ven||'','Premio':(p.pa!=null?p.pa:''),'Cuota mensual':(p.pm!=null?p.pm:''),'Descripcion':p.obs||''}:{};
   document.getElementById('polTitle').textContent=mode==='add'?'Nueva póliza':'Editar póliza';
   var _pbj=document.getElementById('polBaja'); if(_pbj)_pbj.style.display=(mode==='edit'?'':'none');
@@ -734,14 +734,15 @@ function closePol(){const ov=document.getElementById('polOverlay');ov.style.disp
 }
 document.getElementById('polClose').addEventListener('click',closePol);
 document.getElementById('polCancel').addEventListener('click',closePol);
-(function(){var _b=document.getElementById('polBaja'); if(_b)_b.addEventListener('click',function(){_anularPoliza(polOrigNro);});})();
-async function _anularPoliza(nro){
-  if(!nro)return;
-  if(!confirm('¿Dar de baja (anular) la póliza '+nro+'?\n\nSe va a ocultar del listado, pero la fila y los datos del cliente quedan guardados en la planilla.'))return;
+(function(){var _b=document.getElementById('polBaja'); if(_b)_b.addEventListener('click',function(){_anularPoliza(polOrigId,polOrigNro);});})();
+async function _anularPoliza(keyId,keyNro){
+  var useId=!!keyId; var key=useId?keyId:keyNro;
+  if(!key)return;
+  if(!confirm('¿Dar de baja (anular) la póliza '+(keyNro||'(sin número)')+'?\n\nSe va a ocultar del listado, pero la fila y los datos del cliente quedan guardados en la planilla.'))return;
   const msg=document.getElementById('polMsg'); if(msg)msg.innerHTML='Anulando…';
   if(!BK_OK){await bk({action:'ping'});}
-  const r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:nro,fields:JSON.stringify({'Estado':'ANULADA'})});
-  if(r&&r.ok&&r.changed>0){ const i=POL.findIndex(x=>String(x.nro)===String(nro)); if(i>=0)POL.splice(i,1); closePol(); render(); }
+  const r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:(useId?'id':'Poliza'),keyVal:key,fields:JSON.stringify({'Estado':'ANULADA'})});
+  if(r&&r.ok&&r.changed>0){ const i=POL.findIndex(x=>useId?String(x._id)===String(key):String(x.nro)===String(key)); if(i>=0)POL.splice(i,1); closePol(); render(); }
   else if(r&&r.ok&&r.matched>0&&r.changed===0){ if(msg)msg.innerHTML='<span style="color:#ffcf7a">Falta la columna. Agregá un encabezado <b>Estado</b> en CARTERA COMPLETA (una sola vez) y volvé a intentar.</span>'; }
   else { if(msg)msg.innerHTML='<span style="color:#ff8585">No se pudo anular ('+((r&&r.error)||'sin conexión')+').</span>'; }
 }
@@ -774,7 +775,7 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   msg.innerHTML='Guardando en el sheet…';
   let r;
   if(polMode==='add') r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)});
-  else r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:'Poliza',keyVal:polOrigNro,fields:JSON.stringify(f)});
+  else r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:(polOrigId?'id':'Poliza'),keyVal:(polOrigId||polOrigNro),fields:JSON.stringify(f)});
   if(r&&r.ok){
     const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
     if(o.idc&&!CLI[o.idc])CLI[o.idc]={id:o.idc,ape:o.idc,nom:'',doc:o.doc,tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
