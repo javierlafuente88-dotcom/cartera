@@ -291,6 +291,19 @@ function setDot(){var e=document.getElementById('bkstatus');if(!e)return;e.inner
 function bk(params){return new Promise(function(res){var done=false;var cb='__bk_'+Math.floor(Math.random()*1e9);var s=document.createElement('script');window[cb]=function(d){if(done)return;done=true;try{delete window[cb];}catch(e){}if(s.parentNode)s.parentNode.removeChild(s);BK_OK=!!(d&&d.ok);setDot();res(d);};var qs=Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');s.src=BACKEND_URL+'?'+qs+'&callback='+cb;s.onerror=function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'sin_conexion'});};document.head.appendChild(s);setTimeout(function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'timeout'});},13000);});}
 function nk(s){return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');}
 function gvizUrl(tab){return 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&headers=1&sheet='+encodeURIComponent(tab);}
+function parseCSV(text){var rows=[],row=[],cur='',q=false,ch;for(var i=0;i<text.length;i++){ch=text[i];if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}else{if(ch==='"')q=true;else if(ch===','){row.push(cur);cur='';}else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';}else if(ch==='\r'){}else cur+=ch;}}if(cur!==''||row.length){row.push(cur);rows.push(row);}return rows;}
+async function gvizCsv(gid){
+  const ctl=new AbortController(); const _to=setTimeout(()=>ctl.abort(),20000);
+  let r; try{ r=await fetch('https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/export?format=csv&gid='+gid+'&_='+Date.now(),{signal:ctl.signal,cache:'no-store'}); } finally { clearTimeout(_to); }
+  const txt=await r.text();
+  let rows=parseCSV(txt).filter(rw=>rw.length>1||(rw.length===1&&String(rw[0]).trim()!==''));
+  if(!rows.length) return [];
+  let labels=rows[0].map(x=>nk(x||''));
+  let body=rows.slice(1);
+  const nonEmpty=labels.filter(x=>x).length;
+  if(nonEmpty<3){ let hi=body.findIndex(rw=>rw.filter(v=>String(v).trim()!=='').length>=3); if(hi<0)hi=0; labels=body[hi].map(v=>nk(v)); body=body.slice(hi+1); }
+  return body.map(rw=>{const o={};rw.forEach((v,i)=>{o[labels[i]]=(v===''?null:v);});return o;});
+}
 async function gviz(tab){
   const ctl=new AbortController(); const _to=setTimeout(()=>ctl.abort(),20000);
   let r; try{ r=await fetch(gvizUrl(tab),{signal:ctl.signal}); } finally { clearTimeout(_to); }
@@ -321,7 +334,7 @@ var RAMO={'AUTOMOTOR':'automotor','AUTOMOTOR FLOTA':'automotor','MOTO':'automoto
 function mapRamo(r){var k=String(r||'').trim().toUpperCase();return RAMO[k]||'otros';}
 async function loadData(){
   try{
-    const [bs,si,art,ret]=await Promise.all([gviz('CARTERA COMPLETA'),gviz('SINIESTROS'),gviz('ART').catch(()=>[]),gviz('retiro').catch(()=>[])]);
+    const [bs,si,art,ret]=await Promise.all([gvizCsv(1516937969),gviz('SINIESTROS'),gviz('ART').catch(()=>[]),gviz('retiro').catch(()=>[])]);
     const cmap={};
     const P=[];
     let _contactos={};
@@ -344,7 +357,7 @@ async function loadData(){
     const A=art.filter(a=>String(a.ASEGURADO||'').trim()!=='').map((a,_ix)=>({_i:_ix,comp:String(a.COMPANIA||'').toUpperCase(),codigo:String(a['CODIGODEPRODUCTOR69743']||'').trim(),cli:String(a.ASEGURADO||''),doc:a.CUITODNI!=null?String(a.CUITODNI):'',sec:String(a.SECCION||'').trim(),contador:String(a.CONTADOR||''),inicio:artMes(a.INICIODEVIGENCIA),iniso:isoG(a.INICIODEVIGENCIA),capitas:a.CAPITAS!=null?String(a.CAPITAS):'',alic:a.ALICUOTA!=null?String(a.ALICUOTA):'',aumento:a.AUMENTO!=null?String(a.AUMENTO):'',mes:String(a.MES||''),deuda:a.DEUDA!=null?String(a.DEUDA):'',scvo:String(a.SCVO||''),contacto:String(a.CONTACTO||''),bajaC:String(a.BAJA||''),recotizar:String(a.RECOTIZAR||'')}));
     const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map((r,_ix)=>({_i:_ix,comp:String(r.COMPANIA||'').toUpperCase(),codigo:String(r.CODIGO||'').trim(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',sec:String(r.SECCION||'').trim(),plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),nac:isoG(r.FECHADENACIMIENTO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
     DATA={polizas:P,clientes:C,siniestros:S,art:A,retiro:R,contactos:_contactos};
-    try{ const cm=await gviz('Comparativas'); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm.filter(o=>String((o.ASEGURADO!=null?o.ASEGURADO:'')+(o.POLIZA!=null?o.POLIZA:'')+(o.PREMIONUEVO!=null?o.PREMIONUEVO:'')).trim()!==''):[]; }catch(e){ DATA.comparativas=[]; }
+    try{ const cm=await gvizCsv(701885564); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm.filter(o=>String((o.ASEGURADO!=null?o.ASEGURADO:'')+(o.POLIZA!=null?o.POLIZA:'')+(o.PREMIONUEVO!=null?o.PREMIONUEVO:'')).trim()!==''):[]; }catch(e){ DATA.comparativas=[]; }
     var lm=document.getElementById('loadmsg'); if(lm) lm.remove();
     boot();
     (function pingInit(n){ bk({action:'ping'}).then(function(r){ if((!r||!r.ok)&&n>0) setTimeout(function(){pingInit(n-1);}, 4000); }); })(4);
