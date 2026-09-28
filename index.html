@@ -719,13 +719,15 @@ const POLFIELDS=[
  {k:'Fin de Vigencia',l:'Vigencia hasta',t:'date'},
  {k:'Premio',l:'Premio',t:'num'},
  {k:'Cuota mensual',l:'Cuota mensual',t:'num'},
- {k:'Descripcion',l:'Descripción',t:'text'}
+ {k:'Descripcion',l:'Descripción',t:'text'},
+  {k:'Telefono',l:'Teléfono',t:'text'},
+  {k:'Mail',l:'Email',t:'text'}
 ];
 let polMode='edit', polOrigNro='', polOrigId='';
 function _dl(id,arr){return '<datalist id="'+id+'">'+arr.map(x=>'<option value="'+String(x).replace(/"/g,'&quot;')+'"></option>').join('')+'</datalist>';}
 function openPol(mode,p){
   polMode=mode; polOrigNro=(p&&p.nro)||''; polOrigId=(p&&p._id)||'';
-  const v=p?{'Asegurado':p.cli||'','Cuit o Dni':p.doc||'','Compañia':p.comp||'','Codigo':p.codigo||'','Seccion':p.ramo||'','Periodo':p.periodo||'','Poliza':p.nro||'','Incio vigencia':p.ini||'','Fin de Vigencia':p.ven||'','Premio':(p.pa!=null?p.pa:''),'Cuota mensual':(p.pm!=null?p.pm:''),'Descripcion':p.obs||''}:{};
+  const v=p?{'Asegurado':p.cli||'','Cuit o Dni':p.doc||'','Compañia':p.comp||'','Codigo':p.codigo||'','Seccion':p.ramo||'','Periodo':p.periodo||'','Poliza':p.nro||'','Incio vigencia':p.ini||'','Fin de Vigencia':p.ven||'','Premio':(p.pa!=null?p.pa:''),'Cuota mensual':(p.pm!=null?p.pm:''),'Descripcion':p.obs||'','Telefono':(p.tel||''),'Mail':(p.email||'')}:{};
   document.getElementById('polTitle').textContent=mode==='add'?'Nueva póliza':'Editar póliza';
   var _pbj=document.getElementById('polBaja'); if(_pbj)_pbj.style.display=(mode==='edit'?'':'none');
   let html='';
@@ -800,7 +802,7 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   if(polMode==='add') r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)});
   else r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:(polOrigId?'id':'Poliza'),keyVal:(polOrigId||polOrigNro),fields:JSON.stringify(f)});
   if(r&&r.ok){
-    const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:'',email:'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
+    const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:f['Telefono']||'',email:f['Mail']||'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
     if(o.idc&&!CLI[o.idc])CLI[o.idc]={id:o.idc,ape:o.idc,nom:'',doc:o.doc,tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
     if(polMode==='add'){POL.push(o);if(window.GAME)GAME.add('nue');}else{const i=POL.findIndex(x=>polOrigId?String(x._id)===String(polOrigId):String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
     msg.innerHTML='<span class="saved">✓ Guardado en el sheet</span>';
