@@ -353,7 +353,7 @@ async function loadData(){
   }
 }
 function boot(){
-const POL = DATA.polizas.filter(p=>!p.anulada).map(p=>({...p, comp:(p.comp||'').trim().toUpperCase()}));
+const POL = DATA.polizas.filter(p=>!p.anulada).map((p,__i)=>({...p, comp:(p.comp||'').trim().toUpperCase(), _uid:__i}));
 const SIN = DATA.siniestros||[];
 // overrides editables (persisten)
 const LS='cartera_cli_overrides';
@@ -455,7 +455,7 @@ function render(){
   else if(_fenv==='env')_tprows=rows.filter(p=>p.enviada==='SI');
   const _pe=document.getElementById('penCnt'); if(_pe)_pe.textContent='· '+rows.filter(p=>p.enviada!=='SI').length+' pendientes de enviar';
   setHead('tp',['Cliente','Cód.','Compañía','Ramo','Nº','Inicio','Vence','Estado','Premio','Cuota x mes','Descripción','Envío'],['','','','','','','','','num','num','wrap-c','']);
-  body('tp',_tprows,p=>`<tr class="clk" data-nro="${(p.nro||'').toString().replace(/"/g,'')}"><td>${clientName(p.idc)||'—'}</td><td>${p.codigo||'—'}</td><td>${p.comp}</td><td><span class="tag">${p.ramo}</span></td><td>${p.nro||'—'}</td><td>${dmy(p.ini)}</td><td>${dmy(p.ven)}</td><td>${p.est}</td><td class="num">${fmt(p.pa)}</td><td class="num">${fmt(p.pm)}</td><td class="wrap-c">${p.obs||'<span class="muted">—</span>'}</td><td>${p.enviada==='SI'?('<span class="badge b-g">✓ Enviada'+(p.fenvio?' · '+dmy(p.fenvio):'')+'</span> <a class="env-undo" data-undonro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="font-size:10px;color:#8aa1b8;cursor:pointer;text-decoration:underline">deshacer</a>'):('<button class="btn env-btn" data-envnro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="padding:3px 9px;font-size:11px">Marcar enviada</button>')}</td></tr>`);
+  body('tp',_tprows,p=>`<tr class="clk" data-uid="${p._uid}" data-nro="${(p.nro||'').toString().replace(/"/g,'')}"><td>${clientName(p.idc)||'—'}</td><td>${p.codigo||'—'}</td><td>${p.comp}</td><td><span class="tag">${p.ramo}</span></td><td>${p.nro||'—'}</td><td>${dmy(p.ini)}</td><td>${dmy(p.ven)}</td><td>${p.est}</td><td class="num">${fmt(p.pa)}</td><td class="num">${fmt(p.pm)}</td><td class="wrap-c">${p.obs||'<span class="muted">—</span>'}</td><td>${p.enviada==='SI'?('<span class="badge b-g">✓ Enviada'+(p.fenvio?' · '+dmy(p.fenvio):'')+'</span> <a class="env-undo" data-undonro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="font-size:10px;color:#8aa1b8;cursor:pointer;text-decoration:underline">deshacer</a>'):('<button class="btn env-btn" data-envnro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="padding:3px 9px;font-size:11px">Marcar enviada</button>')}</td></tr>`);
 
   const ts=filteredSin().map(s=>({...s,dd:diasDesde(s.fecha)})).sort((a,b)=>(b.abierto-a.abierto)||((b.dd||0)-(a.dd||0)));
   setHead('ts',['','Asegurado','Compañía','Tipo','Nº Siniestro','Póliza','Patente','Fecha','Días','Estado','Observaciones'],['','','','','','','','','num','','wrap-c']);
@@ -760,7 +760,7 @@ async function _markEnviada(nro,on,btn){
 document.getElementById('tp').addEventListener('click',async e=>{
   const eb=e.target.closest('[data-envnro]'); if(eb){await _markEnviada(eb.dataset.envnro,true,eb);return;}
   const ub=e.target.closest('[data-undonro]'); if(ub){await _markEnviada(ub.dataset.undonro,false,ub);return;}
-  const tr=e.target.closest('tr[data-nro]');if(!tr)return;const p=POL.find(x=>String(x.nro)===String(tr.dataset.nro));if(p)openPol('edit',p);
+  const tr=e.target.closest('tr[data-uid]');if(!tr)return;const p=POL.find(x=>String(x._uid)===String(tr.dataset.uid));if(p)openPol('edit',p);
 });
 var _fenvEl=document.getElementById('fenv'); if(_fenvEl)_fenvEl.addEventListener('change',render);
 document.getElementById('polSave').addEventListener('click',async ()=>{
