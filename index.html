@@ -286,7 +286,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
 const SHEET_ID='1lOflsHHRTb32YIzkBxRK_xHEXw-kt9vBCQys6H7iDUs';
 const CONTACTS_ID='1DuvU0HKUlpb7n9noQ5jgOIzuGhHYT6Cnv47Oj8abYv0';
 let DATA={polizas:[],clientes:[],siniestros:[]};
-const BACKEND_URL='https://script.google.com/macros/s/AKfycbwxR3p7x2-gp2u57VH3z6sVMN611R2bj5EbVwG28_eGCXil8CbUOZdP3ksyvvoj9KrmHg/exec';
+const BACKEND_URL='https://script.google.com/macros/s/AKfycbwYf1mzOHw8-8SJvbd9Htsf6pAxsTZ7WViWBKXqpNImIprRsMK0A2F5F5n7FbTKl2QCQQ/exec';
 let BK_OK=false;
 function setDot(){var e=document.getElementById('bkstatus');if(!e)return;e.innerHTML='<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+(BK_OK?'#37c66b':'#ff5a5a')+';margin-right:6px;vertical-align:middle"></span>'+(BK_OK?'Conectado al sheet (edición activa)':'Sin conexión con el sheet — no guardes cambios');e.style.color=BK_OK?'#5fd98a':'#ff8585';}
 function bk(params){return new Promise(function(res){var done=false;var cb='__bk_'+Math.floor(Math.random()*1e9);var s=document.createElement('script');window[cb]=function(d){if(done)return;done=true;try{delete window[cb];}catch(e){}if(s.parentNode)s.parentNode.removeChild(s);BK_OK=!!(d&&d.ok);setDot();res(d);};var qs=Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');s.src=BACKEND_URL+'?'+qs+'&callback='+cb;s.onerror=function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'sin_conexion'});};document.head.appendChild(s);setTimeout(function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'timeout'});},13000);});}
@@ -723,10 +723,10 @@ const POLFIELDS=[
   {k:'Telefono',l:'Teléfono',t:'text'},
   {k:'Mail',l:'Email',t:'text'}
 ];
-let polMode='edit', polOrigNro='', polOrigId='', polOrigDoc='', polOrigCli='';
+let polMode='edit', polOrigNro='', polOrigId='', polOrigDoc='', polOrigCli='', polOrigRamo='', polOrigDesc='', polOrigPremio='', polOrigFin='';
 function _dl(id,arr){return '<datalist id="'+id+'">'+arr.map(x=>'<option value="'+String(x).replace(/"/g,'&quot;')+'"></option>').join('')+'</datalist>';}
 function openPol(mode,p){
-  polMode=mode; polOrigNro=(p&&p.nro)||''; polOrigId=(p&&p._id)||''; polOrigDoc=(p&&p.doc)||''; polOrigCli=(p&&p.cli)||'';
+  polMode=mode; polOrigNro=(p&&p.nro)||''; polOrigId=(p&&p._id)||''; polOrigDoc=(p&&p.doc)||''; polOrigCli=(p&&p.cli)||''; polOrigRamo=(p&&p.ramo)||''; polOrigDesc=(p&&p.obs)||''; polOrigPremio=(p&&p.pa!=null?p.pa:''); polOrigFin=(p&&p.ven)||'';
   const v=p?{'Asegurado':p.cli||'','Cuit o Dni':p.doc||'','Compañia':p.comp||'','Codigo':p.codigo||'','Seccion':p.ramo||'','Periodo':p.periodo||'','Poliza':p.nro||'','Incio vigencia':p.ini||'','Fin de Vigencia':p.ven||'','Premio':(p.pa!=null?p.pa:''),'Cuota mensual':(p.pm!=null?p.pm:''),'Descripcion':p.obs||'','Telefono':(p.tel||''),'Mail':(p.email||'')}:{};
   document.getElementById('polTitle').textContent=mode==='add'?'Nueva póliza':'Editar póliza';
   var _pbj=document.getElementById('polBaja'); if(_pbj)_pbj.style.display=(mode==='edit'?'':'none');
@@ -762,12 +762,25 @@ document.getElementById('polCancel').addEventListener('click',closePol);
 async function _anularPoliza(keyId,keyNro){
   var useId=!!keyId; var key=useId?keyId:keyNro;
   if(!key)return;
-  if(!confirm('¿Dar de baja (anular) la póliza '+(keyNro||'(sin número)')+'?\n\nSe va a ocultar del listado, pero la fila y los datos del cliente quedan guardados en la planilla.'))return;
+  if(!confirm('¿Dar de baja (anular) la póliza '+(keyNro||'(sin número)')+'?\n\nSe va a mover a la hoja ANULADAS con todos sus datos y se quita de CARTERA COMPLETA.'))return;
   const msg=document.getElementById('polMsg'); if(msg)msg.innerHTML='Anulando…';
   if(!BK_OK){await bk({action:'ping'});}
-  const r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:(useId?'id':'Poliza'),keyVal:key,fields:JSON.stringify({'Estado':'ANULADA'})});
-  if(r&&r.ok&&r.changed>0){ const i=POL.findIndex(x=>useId?String(x._id)===String(key):String(x.nro)===String(key)); if(i>=0)POL.splice(i,1); closePol(); render(); }
-  else if(r&&r.ok&&r.matched>0&&r.changed===0){ if(msg)msg.innerHTML='<span style="color:#ffcf7a">Falta la columna. Agregá un encabezado <b>Estado</b> en CARTERA COMPLETA (una sola vez) y volvé a intentar.</span>'; }
+  var _tid=key, _tcol=(useId?'id':'Poliza');
+  try{
+    const _fresh=await gvizCsv(1516937969);
+    const _dig=x=>String(x==null?'':x).replace(/\D/g,'');
+    const _up=x=>String(x==null?'':x).trim().toUpperCase();
+    const _nonAnul=r0=>!/ANUL|BAJA/.test(_up(r0['ESTADO']||''));
+    const oNro=_up(keyNro), oDoc=_dig(polOrigDoc), oCli=_up(polOrigCli);
+    let cand=[];
+    if(oNro) cand=_fresh.filter(r0=>_up(r0['POLIZA'])===oNro && (!oDoc||_dig(r0['CUITODNI'])===oDoc) && (!oCli||_up(r0['ASEGURADO'])===oCli));
+    if(cand.length!==1 && oNro) cand=_fresh.filter(r0=>_up(r0['POLIZA'])===oNro);
+    if(cand.length>1){ const c2=cand.filter(_nonAnul); if(c2.length===1)cand=c2; }
+    if(cand.length===1 && cand[0]['ID']!=null && String(cand[0]['ID'])!==''){ _tid=String(cand[0]['ID']); _tcol='id'; }
+  }catch(e){}
+  const r=await bk({action:'moveRow',sheet:'CARTERA COMPLETA',target:'ANULADAS',keyCol:_tcol,keyVal:_tid});
+  if(r&&r.ok&&r.moved){ const i=POL.findIndex(x=>useId?String(x._id)===String(key):String(x.nro)===String(key)); if(i>=0)POL.splice(i,1); closePol(); render(); }
+  else if(r&&!r.ok&&/desconocida/i.test(String(r.error||''))){ if(msg)msg.innerHTML='<span style="color:#ffcf7a">Actualizá el backend (Apps Script) para activar el envío a la hoja <b>ANULADAS</b>, y volvé a intentar.</span>'; }
   else { if(msg)msg.innerHTML='<span style="color:#ff8585">No se pudo anular ('+((r&&r.error)||'sin conexión')+').</span>'; }
 }
 document.getElementById('addPol').addEventListener('click',()=>openPol('add',null));
@@ -799,12 +812,34 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
   msg.innerHTML='Guardando en el sheet…';
   let r;
-  if(polMode==='add') r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)});
-  else r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:(polOrigId?'id':'Poliza'),keyVal:(polOrigId||polOrigNro),fields:JSON.stringify(f)});
+  if(polMode==='add'){ f['id']=String(Date.now()); r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)}); }
+  else {
+    let _tid=(polOrigId||polOrigNro), _tcol=(polOrigId?'id':'Poliza');
+    try{
+      msg.innerHTML='Ubicando la fila en la planilla…';
+      const _fresh=await gvizCsv(1516937969);
+      const _dig=x=>String(x==null?'':x).replace(/\D/g,'');
+      const _up=x=>String(x==null?'':x).trim().toUpperCase();
+      const _nonAnul=r0=>!/ANUL|BAJA/.test(_up(r0['ESTADO']||''));
+      const oNro=_up(polOrigNro), oDoc=_dig(polOrigDoc), oCli=_up(polOrigCli), oRamo=_up(polOrigRamo), oDesc=_up(polOrigDesc), oFin=String(polOrigFin||''), oPre=(polOrigPremio===''?null:Math.round(num(polOrigPremio)||0));
+      const byPol=oNro?_fresh.filter(r0=>_up(r0['POLIZA'])===oNro && (!oDoc||_dig(r0['CUITODNI'])===oDoc) && (!oCli||_up(r0['ASEGURADO'])===oCli)):[];
+      let cand=byPol.slice();
+      if(cand.length>1){ const c=cand.filter(r0=>_up(r0['SECCION'])===oRamo && _up(r0['DESCRIPCION'])===oDesc && (oPre==null||Math.round(num(r0['PREMIO'])||0)===oPre) && (!oFin||isoG(r0['FINDEVIGENCIA'])===oFin)); if(c.length===1)cand=c; }
+      if(cand.length>1 && polOrigId){ const c=cand.filter(r0=>String(r0['ID'])===String(polOrigId)); if(c.length===1)cand=c; }
+      if(cand.length!==1 && oNro) cand=_fresh.filter(r0=>_up(r0['POLIZA'])===oNro);
+      if(cand.length!==1 && oDoc && oCli) cand=_fresh.filter(r0=>_dig(r0['CUITODNI'])===oDoc && _up(r0['ASEGURADO'])===oCli);
+      if(cand.length!==1 && oCli) cand=_fresh.filter(r0=>_up(r0['ASEGURADO'])===oCli);
+      if(cand.length>1){ const c2=cand.filter(_nonAnul); if(c2.length===1)cand=c2; }
+      if(cand.length>1 && polOrigId){ const c=cand.filter(r0=>String(r0['ID'])===String(polOrigId)); if(c.length===1)cand=c; }
+      if(cand.length===1 && cand[0]['ID']!=null && String(cand[0]['ID'])!==''){ _tid=String(cand[0]['ID']); _tcol='id'; }
+    }catch(e){}
+    msg.innerHTML='Guardando en el sheet…';
+    r=await bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:_tcol,keyVal:_tid,fields:JSON.stringify(f)});
+  }
   if(r&&r.ok){
     const o={idc:f['Asegurado'],cli:f['Asegurado'],doc:f['Cuit o Dni'],comp:(f['Compañia']||'').toUpperCase(),codigo:f['Codigo'],ramo:f['Seccion'],periodo:f['Periodo'],nro:f['Poliza'],ini:isoG(f['Incio vigencia']),ven:isoG(f['Fin de Vigencia']),pa:num(f['Premio']),pm:num(f['Cuota mensual']),est:'vigente',estRaw:'',pat:'',obs:f['Descripcion'],tel:f['Telefono']||'',email:f['Mail']||'',dir:'',loc:''}; o.est=(o.ven&&o.ven<new Date().toISOString().slice(0,10))?'vencida':'vigente';
     if(o.idc&&!CLI[o.idc])CLI[o.idc]={id:o.idc,ape:o.idc,nom:'',doc:o.doc,tipo:'',tel:'',email:'',dir:'',loc:'',nac:'',est:'activo'};
-    if(polMode==='add'){POL.push(o);if(window.GAME)GAME.add('nue');}else{const i=POL.findIndex(x=>polOrigId?String(x._id)===String(polOrigId):String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
+    if(polMode==='add'){o._id=f['id']||'';o._uid=POL.length;POL.push(o);if(window.GAME)GAME.add('nue');}else{const i=POL.findIndex(x=>polOrigId?String(x._id)===String(polOrigId):String(x.nro)===String(polOrigNro));if(i>=0)POL[i]=Object.assign({},POL[i],o);}
      try{ var _kc=(polOrigDoc||o.doc)?'Cuit o Dni':((polOrigCli||o.cli)?'Asegurado':''); var _kv=(polOrigDoc||o.doc)||(polOrigCli||o.cli)||''; if(_kc&&_kv){ var _sh={}; if(o.cli)_sh['Asegurado']=o.cli; if(o.doc)_sh['Cuit o Dni']=o.doc; if(f['Telefono'])_sh['Telefono']=f['Telefono']; if(f['Mail'])_sh['Mail']=f['Mail']; if(Object.keys(_sh).length){bk({action:'update',sheet:'CARTERA COMPLETA',keyCol:_kc,keyVal:_kv,all:'1',fields:JSON.stringify(_sh)});} POL.forEach(function(x){ var same=_kc==='Cuit o Dni'?(String(x.doc)===String(_kv)):(String(x.cli)===String(_kv)); if(same){ x.doc=o.doc; x.tel=f['Telefono']||''; x.email=f['Mail']||''; } }); } }catch(e){}
     msg.innerHTML='<span class="saved">✓ Guardado en el sheet</span>';
     setTimeout(()=>{closePol();render();},650);
@@ -1487,5 +1522,6 @@ window.PDFIMP=(function(){
     reg.addEventListener('updatefound',function(){ var nw=reg.installing; if(nw){ nw.addEventListener('statechange',function(){ if(nw.state==='installed' && navigator.serviceWorker.controller){ if(reg.waiting)reg.waiting.postMessage('skipWaiting'); } }); } });
   }).catch(function(){});
 });}</script>
+<script>window.__SYNCFIX={reread:true,appendId:true,moveAnuladas:true,build:"2026-10-01-anuladas"};</script>
 </body>
 </html>
