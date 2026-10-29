@@ -810,6 +810,7 @@ document.getElementById('polSave').addEventListener('click',async ()=>{
   const msg=document.getElementById('polMsg');
   if(!f.Poliza){msg.innerHTML='<span style="color:#ff8585">Falta el Nº de póliza.</span>';return;}
   if(!BK_OK){msg.innerHTML='Verificando conexión…';await bk({action:'ping'});}
+  if(polMode==='add'){ var _np=String(f.Poliza||'').replace(/\D/g,''); var _nd=String(f['Cuit o Dni']||'').replace(/\D/g,''); var _nc=String(f.Asegurado||'').trim().toUpperCase(); var _dup=(typeof POL!=='undefined')&&POL.find(function(x){ var xp=String(x.nro||'').replace(/\D/g,''); if(!xp||xp!==_np)return false; var xd=String(x.doc||'').replace(/\D/g,''); return (_nd&&xd===_nd)||(!_nd&&_nc&&String(x.cli||'').trim().toUpperCase()===_nc); }); if(_dup){ if(!confirm('⚠ Ya existe una poliza N° '+f.Poliza+' de '+((_dup.cli)||'este cliente')+'.\n\nSi continuas se crea una fila NUEVA (duplicado). Guardar igual?\n\nSi querias actualizar la existente, cancela y editala desde el listado.')){ msg.innerHTML='<span style="color:#ffcf7a">Guardado cancelado para evitar un duplicado.</span>'; return; } } }
   msg.innerHTML='Guardando en el sheet…';
   let r;
   if(polMode==='add'){ f['id']=String(Date.now()); r=await bk({action:'append',sheet:'CARTERA COMPLETA',row:JSON.stringify(f)}); }
