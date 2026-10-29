@@ -859,7 +859,7 @@ const SINFIELDS=[
  {k:'FECHA SINIESTRO',l:'Fecha del siniestro',t:'date'},
  {k:'FECHA DE DENUNCIA',l:'Fecha de denuncia',t:'date'},
  {k:'ESTADO',l:'Estado',t:'select',opts:['','EN PROCESO','TERMINADO']},
- {k:'OBSERVACIONES',l:'Observaciones',t:'text'}
+ {k:'OBSERVACIONES',l:'Observaciones',t:'textarea'}
 ];
 let sinOrigNro='', sinOrigId='', sinMode='edit';
 function _sinEst(s){const e=(s.estRaw||s.est||'').toUpperCase();if(/TERMIN/.test(e))return 'TERMINADO';if(/PROCES/.test(e))return 'EN PROCESO';return s.estRaw||'';}
@@ -869,6 +869,53 @@ function _sinPolsDL(aseg){
   const dl=document.getElementById('dlPolSin');
   if(dl)dl.innerHTML=pols.map(p=>'<option value="'+String(p.nro||'').replace(/"/g,'&quot;')+'">'+(p.comp||'')+(p.ramo?' · '+p.ramo:'')+'</option>').join('');
   return pols;
+}
+function _sinToIso(x){ var m=String(x||'').match(/(\d{2})[\/-](\d{2})[\/-](\d{4})/); return m?m[3]+'-'+m[2]+'-'+m[1]:''; }
+function sinParse(t){
+  t=String(t||'');
+  function pk(re){var m=t.match(re);return m?String(m[1]).trim():'';}
+  var d={aseg:'',nro:'',comp:'',tipo:'',pol:'',pat:'',fecha:'',denuncia:'',obs:''};
+  d.nro=pk(/Siniestro\s*(?:N[°º]|Nro\.?|N[uú]mero)?\s*[:.\-]?\s*(\d[\w\/.\-]{2,})/i);
+  d.pol=pk(/P[oó]liza\s*(?:N[°º]|Nro\.?)?\s*[:.\-]?\s*(\d[\d.\/ ]{3,})/i).replace(/\D/g,'');
+  d.pat=pk(/(?:Patente|Dominio)\s*[:.\-]?\s*([A-Z]{2,3}\s?\d{2,3}\s?[A-Z]{0,3})/i).replace(/\s/g,'').toUpperCase();
+  d.fecha=_sinToIso(pk(/Fecha\s*(?:del?\s*)?(?:siniestro|hecho|evento|ocurrencia)\s*[:.\-]?\s*(\d{2}[\/-]\d{2}[\/-]\d{4})/i));
+  d.denuncia=_sinToIso(pk(/Fecha\s*(?:de\s*)?denuncia\s*[:.\-]?\s*(\d{2}[\/-]\d{2}[\/-]\d{4})/i));
+  d.aseg=pk(/(?:Asegurado|Tomador)\s*[:.\-]?\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ ,.'\-]{3,}?)(?:\s{2,}|\n|Documento|DNI|CUIT|P[oó]liza|$)/);
+  d.tipo=pk(/(?:Tipo\s*(?:de\s*)?siniestro|Cobertura\s*afectada|Causa|Motivo)\s*[:.\-]?\s*([A-Za-zÁÉÍÓÚÑ][^\n]{2,40})/i);
+  var mo=t.match(/(?:Descripci[oó]n\s*(?:del?\s*)?(?:hecho|siniestro)|Relato(?:\s*de\s*los\s*hechos)?|Observaciones|Detalle\s*del\s*hecho|C[oó]mo\s*ocurri[oó])\s*[:.\-]?\s*([\s\S]{3,500})/i);
+  if(mo)d.obs=mo[1].replace(/\s+/g,' ').trim().slice(0,500);
+  return d;
+}
+function _fillSin(d){
+  function set(k,v){ var el=document.querySelector('#sinForm [data-sf="'+k+'"]'); if(el&&v!=null&&v!=='')el.value=v; }
+  var m=null; if(d.pol){ var np=String(d.pol).replace(/\D/g,''); m=(typeof POL!=='undefined')&&POL.find(function(x){return String(x.nro||'').replace(/\D/g,'')===np;}); }
+  set('N° SINIESTRO',d.nro);
+  set('POLIZA',d.pol||(m&&m.nro)||'');
+  set('ASEGURADO',d.aseg||(m&&m.cli)||'');
+  set('COMPAÑIA',(m&&m.comp)||d.comp||'');
+  set('PATENTE',d.pat||(m&&m.pat)||'');
+  set('TIPO',d.tipo);
+  set('FECHA SINIESTRO',d.fecha);
+  set('FECHA DE DENUNCIA',d.denuncia);
+  if(d.obs){ var ob=document.querySelector('#sinForm [data-sf="OBSERVACIONES"]'); if(ob)ob.value=d.obs; }
+  var aEl=document.querySelector('#sinForm [data-sf="ASEGURADO"]'); if(aEl){ try{aEl.dispatchEvent(new Event('input',{bubbles:true}));}catch(e){} }
+}
+function _wireSinPdf(){
+  var b=document.getElementById('sinPdfBtn'),i=document.getElementById('sinPdfInp'),st=document.getElementById('sinPdfStatus');
+  if(!b||!i)return;
+  b.addEventListener('click',function(){i.value='';i.click();});
+  i.addEventListener('change',async function(){
+    var f=i.files&&i.files[0]; if(!f)return;
+    if(st)st.textContent='Leyendo PDF…';
+    try{
+      if(!window.PDFIMP||!window.PDFIMP.extractText){if(st)st.textContent='Módulo PDF no disponible';return;}
+      var buf=await f.arrayBuffer();
+      var text=await window.PDFIMP.extractText(buf.slice(0));
+      var d=sinParse(text||'');
+      _fillSin(d);
+      if(st)st.innerHTML='<span style="color:#37c66b">✓ Datos cargados del PDF. Revisá y guardá.</span>';
+    }catch(e){ if(st)st.textContent='No se pudo leer el PDF'; }
+  });
 }
 function openSin(s){
   sinMode=s?'edit':'add';
@@ -882,12 +929,15 @@ function openSin(s){
     if(fl.t==='select'){inp='<select data-sf="'+fl.k+'">'+fl.opts.map(o=>'<option'+(String(o)===String(v[fl.k]||'')?' selected':'')+'>'+o+'</option>').join('')+'</select>';}
     else if(fl.t==='date'){inp='<input type="date" data-sf="'+fl.k+'" value="'+val+'">';}
     else if(fl.t==='list'){inp='<input data-sf="'+fl.k+'" list="'+fl.list+'" autocomplete="off" value="'+val+'">';}
+    else if(fl.t==='textarea'){inp='<textarea data-sf="'+fl.k+'" rows="4" style="width:100%;resize:vertical;min-height:92px;font:inherit">'+val+'</textarea>';}
     else{inp='<input data-sf="'+fl.k+'" value="'+val+'">';}
-    html+='<div><label>'+fl.l+'</label>'+inp+'</div>';
+    html+='<div'+(fl.t==='textarea'?' style="grid-column:1/-1"':'')+'><label>'+fl.l+'</label>'+inp+'</div>';
   });
   const asegList=[...new Set(POL.map(x=>x.cli).filter(Boolean))].sort();
   html+=_dl('dlAseg',asegList)+_dl('dlComp',comps)+'<datalist id="dlPolSin"></datalist>';
+  html='<div style="grid-column:1/-1;margin:0 0 8px;padding:8px 10px;border:1px dashed #3a4a6a;border-radius:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button type="button" class="btn" id="sinPdfBtn">📄 Adjuntar PDF y autocompletar</button><input type="file" id="sinPdfInp" accept="application/pdf" style="display:none"><span id="sinPdfStatus" class="muted" style="font-size:13px"></span></div>'+html;
   document.getElementById('sinForm').innerHTML=html;
+  _wireSinPdf();
   document.getElementById('sinMsg').textContent='';
   const aEl=document.querySelector('#sinForm [data-sf="ASEGURADO"]');
   const pEl=document.querySelector('#sinForm [data-sf="POLIZA"]');
