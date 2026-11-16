@@ -372,6 +372,7 @@ async function loadData(){
   }
 }
 function boot(){
+try{window.openCliente=openCliente;}catch(e){}
 const POL = DATA.polizas.filter(p=>!p.anulada).map((p,__i)=>({...p, comp:(p.comp||'').trim().toUpperCase(), _uid:__i}));
 const SIN = DATA.siniestros||[];
 // overrides editables (persisten)
