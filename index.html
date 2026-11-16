@@ -152,6 +152,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <button class="tab" data-t="pol">Todas las pólizas</button>
     <button class="tab" data-t="sin">Siniestros <span class="cnt" id="sinCnt"></span></button>
     <button class="tab" data-t="seg">📌 Seguimientos <span class="cnt" id="segCnt"></span></button>
+    <button class="tab" data-t="ia">🤖 Asistente</button>
     <button class="tab" data-t="art">ART</button>
     <button class="tab" data-t="ret">Retiro</button>
     <button class="tab" data-t="cross">Venta cruzada</button>
@@ -192,6 +193,8 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
       <div class="panel" id="pCliSeg" style="margin-top:16px"><h2>📌 Notas y seguimientos</h2><div id="cliSegList" style="margin-bottom:10px"></div><div style="display:flex;flex-direction:column;gap:8px"><textarea id="cliSegTxt" rows="3" placeholder="Nueva nota… (ej: Llamé a Martín, quiere cotizar flota nueva)" style="width:100%;resize:vertical;font:inherit;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:8px 10px"></textarea><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="font-size:13px;color:#8a97ad">Próximo seguimiento:</label><input type="date" id="cliSegDate"><button class="btn" id="cliSegAdd" type="button">Guardar nota</button><span id="cliSegMsg" class="muted" style="font-size:13px"></span></div></div></div>
     </div>
   </div>
+
+  <div id="t-ia" class="hidden"><div class="panel"><div class="hh"><h2>🤖 Asistente IA <span class="muted" id="iaSub" style="font-weight:400">· responde con tu cartera en vivo</span></h2></div><div id="iaMsgs" style="display:flex;flex-direction:column;gap:10px;min-height:120px;max-height:52vh;overflow:auto;padding:4px 2px"></div><div id="iaChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px"></div><div style="display:flex;gap:8px"><input id="iaInp" placeholder="Preguntá o pedí algo… (ej: ¿qué vence esta semana?)" style="flex:1;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:10px 12px;font:inherit"><button class="btn" id="iaSend" type="button">Enviar</button></div></div></div>
 
   <div id="t-seg" class="hidden"><div class="panel"><div class="hh"><h2>📌 Seguimientos <span class="muted" id="segSub" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><select id="segFilt" class="mini"><option value="pend">Pendientes</option><option value="all">Todos</option><option value="done">Hechos</option></select></div></div><div id="segBody"></div></div></div>
 
@@ -1227,7 +1230,7 @@ var _navT=document.getElementById('navToggle'),_navNav=document.getElementById('
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tb.classList.add('active');
   var _nn=document.getElementById('tabsNav'); if(_nn)_nn.classList.remove('open'); var _nl=document.getElementById('navToggleLbl'); if(_nl)_nl.textContent=tb.textContent.replace(/\s+/g,' ').trim();
-  ['venc','cli','pol','sin','seg','graf','art','ret','cross','compa','game','falt'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render(); if(tb.dataset.t==='seg'&&window.renderSeg)renderSeg();
+  ['venc','cli','pol','sin','seg','ia','graf','art','ret','cross','compa','game','falt'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render(); if(tb.dataset.t==='seg'&&window.renderSeg)renderSeg(); if(tb.dataset.t==='ia'&&window.iaInit)iaInit();
   if(tb.dataset.t==='cli'){curCli=null;document.getElementById('cli-detail').classList.add('hidden');document.getElementById('cli-list').classList.remove('hidden');}
   render();
 }));
@@ -1585,6 +1588,118 @@ window.PDFIMP=(function(){
   }).catch(function(){});
 });}</script>
 <script>window.__SYNCFIX={reread:true,appendId:true,moveAnuladas:true,build:"2026-10-01-anuladas"};</script>
+<script>
+/* ===== Asistente IA (Fase 2) ===== */
+(function(){
+var HIST=[];
+function _nnG(s){return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9 ]/g,' ').replace(/\s+/g,' ').trim();}
+function _esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+function _todayIso(){return new Date().toISOString().slice(0,10);}
+function _todayDmy(){var d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();}
+function _iso2dmy(v){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));return m?(m[3]+'/'+m[2]+'/'+m[1]):'';}
+function _dias(ven){ if(!ven)return null; var d=new Date(ven+'T00:00:00'),t=new Date(_todayIso()+'T00:00:00'); return Math.round((d-t)/86400000); }
+function _dig(x){return String(x||'').replace(/\D/g,'');}
+
+function iaCtx(msg){
+  var P=DATA.polizas||[], CL=DATA.clientes||[], segs=DATA.seguimientos||[];
+  var L=[];
+  L.push('Hoy es '+_todayIso()+'. Cartera: '+CL.length+' clientes, '+P.length+' polizas.');
+  var venc=P.map(function(p){return {p:p,d:_dias(p.ven)};}).filter(function(x){return x.d!=null&&x.d>=-7&&x.d<=45;}).sort(function(a,b){return a.d-b.d;}).slice(0,15);
+  if(venc.length){ L.push('Vencimientos proximos (+-45 dias):'); venc.forEach(function(x){ L.push('- '+(x.p.cli||'')+' | '+(x.p.comp||'')+' | '+(x.p.ramo||'')+' | No '+(x.p.nro||'-')+' | vence '+(x.p.ven||'?')+' | '+(x.d<0?('vencio hace '+(-x.d)+'d'):('en '+x.d+'d'))); }); }
+  var sp=segs.filter(function(s){return s.estado!=='hecho';}).slice(0,10);
+  if(sp.length){ L.push('Seguimientos pendientes:'); sp.forEach(function(s){ L.push('- '+(s.cli||'')+(s.doc?(' ('+s.doc+')'):'')+' | '+(s.nota||'')+(s.prox?(' | para '+s.prox):'')); }); }
+  var mn=' '+_nnG(msg)+' ';
+  var digits=(msg.match(/\d{6,}/g)||[]);
+  var matched=[], seen={};
+  CL.forEach(function(c){
+    var nn=_nnG(c.ape||c.id||''); var hit=false;
+    if(nn && nn.length>=4 && mn.indexOf(' '+nn+' ')>=0) hit=true;
+    if(!hit){ var toks=nn.split(' ').filter(function(w){return w.length>=5;}); for(var i=0;i<toks.length;i++){ if(mn.indexOf(' '+toks[i]+' ')>=0){hit=true;break;} } }
+    if(!hit && c.doc){ var dd=_dig(c.doc); if(dd&&digits.indexOf(dd)>=0)hit=true; }
+    if(hit && !seen[c.id]){ seen[c.id]=1; matched.push(c); }
+  });
+  matched=matched.slice(0,4);
+  matched.forEach(function(c){
+    var ps=P.filter(function(p){ return (p.cli||p.idc)===c.id || (c.doc&&p.doc&&_dig(p.doc)===_dig(c.doc)); });
+    L.push('Cliente: '+(c.ape||c.id)+(c.doc?(' | CUIT/DNI '+c.doc):'')+(c.tel?(' | tel '+c.tel):'')+(c.email?(' | '+c.email):''));
+    ps.slice(0,12).forEach(function(p){ L.push('   - '+(p.comp||'')+' | '+(p.ramo||'')+' | No '+(p.nro||'-')+' | vence '+(p.ven||'?')+' | premio '+(p.pa||'?')+' | cuota '+(p.pm||'?')); });
+    var cs=segs.filter(function(s){ return (s.doc&&c.doc&&_dig(s.doc)===_dig(c.doc)) || _nnG(s.cli)===_nnG(c.ape); });
+    cs.slice(0,5).forEach(function(s){ L.push('   seguimiento: '+(s.nota||'')+(s.prox?(' (para '+s.prox+')'):'')+' ['+s.estado+']'); });
+  });
+  var out=L.join('\n');
+  if(out.length>3200) out=out.slice(0,3200)+'\n...(contexto recortado)';
+  return out;
+}
+
+function bubble(html,who){
+  var m=document.getElementById('iaMsgs'); if(!m)return null;
+  var d=document.createElement('div');
+  d.style.cssText='max-width:88%;padding:9px 12px;border-radius:12px;font-size:13.5px;white-space:pre-wrap;line-height:1.5;'+(who==='u'?'align-self:flex-end;background:#3f7cf6;color:#fff;border-bottom-right-radius:4px':'align-self:flex-start;background:#1d2536;border:1px solid #2a3346;border-bottom-left-radius:4px');
+  d.innerHTML=html; m.appendChild(d); m.scrollTop=m.scrollHeight; return d;
+}
+function parseAccion(text){
+  var m=/<<ACCION>>([\s\S]*?)<<FIN>>/.exec(text||'');
+  if(!m) return {clean:text||'',act:null};
+  var act=null; try{ act=JSON.parse(m[1]); }catch(e){ act=null; }
+  return {clean:(text.replace(m[0],'')).trim(),act:act};
+}
+async function iaAddSeg(cuit,cli,nota,proxIso){
+  var sid='SG'+Date.now();
+  var row={ID:sid,Fecha:_todayDmy(),'Cuit o Dni':cuit||'',Asegurado:cli||'',Nota:nota||'','Proximo Seguimiento':_iso2dmy(proxIso),Estado:'pendiente',Productor:'JL'};
+  if(!BK_OK)await bk({action:'ping'});
+  var r=await bk({action:'append',sheet:'SEGUIMIENTOS',row:JSON.stringify(row)});
+  if(r&&r.ok){ if(!DATA.seguimientos)DATA.seguimientos=[]; DATA.seguimientos.unshift({id:sid,fecha:_todayIso(),doc:cuit||'',cli:cli||'',nota:nota||'',prox:proxIso||'',estado:'pendiente',prod:'JL'}); if(window.renderSeg)renderSeg(); if(window.render)render(); return true; }
+  return false;
+}
+function renderAccionCard(act){
+  var m=document.getElementById('iaMsgs'); if(!m)return;
+  var d=document.createElement('div');
+  d.style.cssText='align-self:flex-start;max-width:92%;background:#201a12;border:1px solid #5a4a2b;border-radius:10px;padding:10px 12px';
+  var prox=act.proximo?(' · seguir el '+_esc(_iso2dmy(act.proximo)||act.proximo)):'';
+  d.innerHTML='⏰ <b>Agendar seguimiento</b><br>Cliente: '+_esc(act.cliente||'?')+(act.cuit?(' ('+_esc(act.cuit)+')'):'')+'<br>Nota: '+_esc(act.nota||'')+prox+'<div style="margin-top:8px;display:flex;gap:8px"><button class="btn" data-iaok="1">Confirmar</button><button class="btn sec" data-iano="1">Cancelar</button></div><div class="muted" data-iares style="font-size:12px;margin-top:6px"></div>';
+  m.appendChild(d); m.scrollTop=m.scrollHeight;
+  d.querySelector('[data-iano]').onclick=function(){ d.querySelector('[data-iares]').textContent='Cancelado.'; d.querySelector('[data-iaok]').disabled=true; d.querySelector('[data-iano]').disabled=true; };
+  d.querySelector('[data-iaok]').onclick=async function(){
+    var res=d.querySelector('[data-iares]'); res.textContent='Guardando...';
+    var ok=await iaAddSeg(act.cuit||'',act.cliente||'',act.nota||'',act.proximo||'');
+    res.innerHTML=ok?'<span style="color:#37c66b">✓ Agendado. Lo ves en la solapa Seguimientos.</span>':'<span style="color:#ff8585">No se pudo guardar.</span>';
+    d.querySelector('[data-iaok]').disabled=true; d.querySelector('[data-iano]').disabled=true;
+  };
+}
+window.iaSend=async function(text){
+  var inp=document.getElementById('iaInp');
+  var q=(text!==undefined?text:(inp?inp.value:'')).trim(); if(!q)return;
+  if(text===undefined&&inp)inp.value='';
+  bubble(_esc(q),'u'); HIST.push({role:'u',text:q});
+  var wait=bubble('<span class="muted">pensando...</span>','a');
+  var ctx=iaCtx(q);
+  var hist=HIST.slice(-7,-1).map(function(h){return (h.role==='u'?'Javier: ':'Asistente: ')+h.text;}).join('\n');
+  var r=await bk({action:'ai',q:q,ctx:ctx,h:hist});
+  if(!r||!r.ok){
+    var em=(r&&r.error)||'sin_conexion';
+    if(em==='FALTA_API_KEY'){ wait.innerHTML='⚙️ Falta cargar la clave de Gemini en el Apps Script (propiedad <b>GEMINI_KEY</b>). Cuando la pongas y redeployes, el asistente funciona.'; }
+    else if(/desconocida/i.test(em)){ wait.innerHTML='El backend todavia no tiene la funcion de IA. Hay que pegar la version nueva del Apps Script y redeployar (Nueva version).'; }
+    else if(/^API_/.test(em)){ wait.innerHTML='El modelo devolvio un error ('+_esc(em)+'). '+_esc((r&&r.detail)||''); }
+    else { wait.innerHTML='No pude conectar con el asistente ('+_esc(em)+').'; }
+    return;
+  }
+  var pr=parseAccion(r.text||'');
+  wait.innerHTML=_esc(pr.clean||'(sin respuesta)').replace(/\n/g,'<br>');
+  HIST.push({role:'a',text:pr.clean});
+  if(pr.act && pr.act.accion==='agregar_seguimiento') renderAccionCard(pr.act);
+};
+var CHIPS=['¿Qué vence esta semana?','Resumime la cartera','Redactá un WhatsApp de renovación','¿A quién le puedo vender un seguro de auto?'];
+window.iaInit=function(){
+  if(window._iaReady)return; window._iaReady=true;
+  var ch=document.getElementById('iaChips');
+  if(ch){ ch.innerHTML=CHIPS.map(function(c){return '<span class="chip-ia" style="background:#13203a;border:1px solid #2c416e;color:#bcd0ff;border-radius:999px;padding:6px 10px;font-size:12.5px;cursor:pointer">'+_esc(c)+'</span>';}).join('');
+    [].forEach.call(ch.querySelectorAll('.chip-ia'),function(el){ el.onclick=function(){ iaSend(el.textContent); }; }); }
+  var sb=document.getElementById('iaSend'); if(sb)sb.onclick=function(){ iaSend(); };
+  var ip=document.getElementById('iaInp'); if(ip)ip.addEventListener('keydown',function(e){ if(e.key==='Enter')iaSend(); });
+  bubble('¡Hola Javier! Soy tu asistente de cartera. Puedo responder sobre tus pólizas y vencimientos, redactar mensajes y agendar seguimientos. Preguntá lo que quieras \U0001F447','a');
+};
+})();
+</script>
 <script>
 /* ===== CRM Seguimientos (Fase 1) ===== */
 (function(){
