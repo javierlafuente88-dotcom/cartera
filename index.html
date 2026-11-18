@@ -235,12 +235,12 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <div class="chips" id="cmpActual"></div>
     <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
       <h2 style="margin:0;font-size:15px">Cotizaciones de otras compañías</h2>
-      <button class="btn sec" id="cmpAddQ">+ Agregar cotización</button>
+      <button class="btn sec" id="cmpAddQ">+ Agregar cotización</button><button class="btn sec" id="cmpPdfBtn" style="margin-left:6px">📄 Desde PDF</button><input type="file" id="cmpPdfInp" accept="application/pdf" style="display:none"><span id="cmpPdfMsg" class="muted" style="font-size:12px;margin-left:8px"></span>
     </div>
     <div style="font-size:11px;color:#9aa3b8;margin:8px 0 4px;display:grid;grid-template-columns:1.4fr 1fr 1fr 1.3fr 1.3fr auto;gap:8px"><span>Compañía cotizada</span><span>Premio</span><span>Cuota</span><span>Δ vs premio actual</span><span>Δ vs cuota actual</span><span></span></div>
     <div id="cmpQuotes"></div>
     <div id="cmpResult" style="margin:12px 0 12px"></div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="cmpSave">Guardar comparativa en el sheet</button><span id="cmpMsg" style="font-size:13px"></span></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn" id="cmpSave">Guardar comparativa en el sheet</button><button class="btn" id="cmpPdfOut" style="background:#c9a24a;border-color:#c9a24a;color:#15223f">📄 Generar PDF para el cliente</button><span id="cmpMsg" style="font-size:13px"></span></div>
     <div style="margin-top:18px"><div class="hh"><h2 style="margin:0">Comparativas guardadas <span class="muted" id="cmpCnt" style="font-weight:400"></span></h2></div>
       <div class="scroll"><table id="tcmp"><thead></thead><tbody></tbody></table></div></div>
     <datalist id="cmpAsegDL"></datalist><datalist id="cmpCompDL"></datalist>
@@ -1599,6 +1599,122 @@ window.PDFIMP=(function(){
   }).catch(function(){});
 });}</script>
 <script>window.__SYNCFIX={reread:true,appendId:true,moveAnuladas:true,build:"2026-10-01-anuladas"};</script>
+<script>
+/* ===== Comparativas: lector PDF + exportar PDF (Grupo Lafuente) ===== */
+(function(){
+function _money(n){ if(n==null||n===''||isNaN(n))return '—'; try{return '$'+Math.round(n).toLocaleString('es-AR');}catch(e){return '$'+Math.round(n);} }
+function _esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+function _pct(n){ return (n>0?'+':'')+n.toFixed(1)+'%'; }
+function _today(){var d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();}
+
+/* ---- Lector de PDF: carga una cotización y arma una fila ---- */
+function wirePdfReader(){
+  var btn=document.getElementById('cmpPdfBtn'), inp=document.getElementById('cmpPdfInp'), msg=document.getElementById('cmpPdfMsg');
+  if(!btn||!inp)return;
+  btn.onclick=function(){ inp.value=''; inp.click(); };
+  inp.onchange=async function(){
+    var f=inp.files&&inp.files[0]; if(!f)return;
+    if(!window.PDFIMP){ if(msg)msg.textContent='Módulo PDF no disponible'; return; }
+    if(msg)msg.textContent='Leyendo PDF…';
+    try{
+      var buf=await f.arrayBuffer();
+      var text=await window.PDFIMP.extractText(buf.slice(0));
+      var d=window.PDFIMP.parse(text)||{};
+      var row={comp:d.compania||'', premio:(d.premio!=null?String(d.premio):''), cuota:(d.cuota!=null?String(d.cuota):'')};
+      // si la unica fila esta vacia, la reemplazo; si no, agrego
+      if(_cmpQuotes.length===1 && !(_cmpQuotes[0].comp||_cmpQuotes[0].premio||_cmpQuotes[0].cuota)){ _cmpQuotes[0]=row; }
+      else { _cmpQuotes.push(row); }
+      if(window._cmpRenderQuotes)_cmpRenderQuotes();
+      if(window._cmpSummary)_cmpSummary();
+      var leido=[d.compania?('compañía: '+d.compania):'', d.premio?('premio: '+_money(num(d.premio))):'', d.cuota?('cuota: '+_money(num(d.cuota))):''].filter(Boolean).join(' · ');
+      if(msg)msg.innerHTML=leido?('✓ Leído — '+_esc(leido)+(!d.premio&&!d.cuota?' (revisá los montos)':'')):'No pude leer los montos; completalos a mano.';
+    }catch(e){ if(msg)msg.textContent='No se pudo leer el PDF.'; }
+  };
+}
+
+/* ---- Generar PDF comparativo con la marca ---- */
+function buildRows(){
+  var d=(window._cur?_cur():{})||{};
+  var paAct=d.pa, pmAct=d.pm;
+  var rows=[];
+  // fila actual
+  rows.push({comp:(d.comp||'Actual'), premio:paAct, cuota:pmAct, actual:true});
+  (_cmpQuotes||[]).forEach(function(q){
+    var pr=num(q.premio), cu=num(q.cuota);
+    if(pr==null&&cu==null&&!(q.comp||'').trim())return;
+    rows.push({comp:(q.comp||'(sin nombre)'), premio:pr, cuota:cu, actual:false, paAct:paAct, pmAct:pmAct});
+  });
+  return {d:d, rows:rows};
+}
+function genPDF(){
+  var aseg=(document.getElementById('cmpAseg')||{}).value||'';
+  var nro=(document.getElementById('cmpPol')||{}).value||'';
+  var tipo=(document.getElementById('cmpTipo')||{}).value||'';
+  var bb=buildRows(); var d=bb.d, rows=bb.rows;
+  if(!aseg||rows.length<=1){ var m=document.getElementById('cmpMsg'); if(m)m.innerHTML='<span style="color:#ff8585">Elegí un asegurado y cargá al menos una cotización.</span>'; return; }
+  // mejor opcion por premio (excluye la actual)
+  var quotes=rows.filter(function(r){return !r.actual && r.premio!=null;});
+  var best=quotes.slice().sort(function(a,b){return a.premio-b.premio;})[0];
+  var ahorro=(best&&d.pa!=null)?(d.pa-best.premio):null;
+  function cell(r){
+    var dpr='—', dcu='—', prc='', crc='';
+    if(!r.actual){
+      if(r.premio!=null&&r.paAct!=null){ var m=r.premio-r.paAct; var p=r.paAct?(m/r.paAct*100):0; dpr=_money(r.premio-r.paAct)+' ('+_pct(p)+')'; prc=m<0?'pos':'neg'; }
+      if(r.cuota!=null&&r.pmAct!=null){ var m2=r.cuota-r.pmAct; var p2=r.pmAct?(m2/r.pmAct*100):0; dcu=_money(r.cuota-r.pmAct)+' ('+_pct(p2)+')'; crc=m2<0?'pos':'neg'; }
+    }
+    var isBest=best&&!r.actual&&r.comp===best.comp&&r.premio===best.premio;
+    return '<tr class="'+(r.actual?'act':'')+(isBest?' best':'')+'">'+
+      '<td class="co">'+_esc(r.comp)+(r.actual?' <span class="tagact">ACTUAL</span>':'')+(isBest?' <span class="tagbest">MEJOR</span>':'')+'</td>'+
+      '<td class="num">'+_money(r.premio)+'</td>'+
+      '<td class="num">'+_money(r.cuota)+'</td>'+
+      '<td class="num '+prc+'">'+dpr+'</td>'+
+      '<td class="num '+crc+'">'+dcu+'</td></tr>';
+  }
+  var filas=rows.map(cell).join('');
+  var reco='';
+  if(best){
+    reco='<div class="reco"><b>Recomendación:</b> la opción más conveniente es <b>'+_esc(best.comp)+'</b> con un premio de '+_money(best.premio)+
+      (ahorro!=null&&ahorro>0?(' — un ahorro estimado de <b>'+_money(ahorro)+'</b> frente a la póliza actual.'):'.')+'</div>';
+  }
+  var html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Comparativa '+_esc(aseg)+'</title><style>'+
+  '@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#1c2430;margin:0}'+
+  '.hdr{display:flex;align-items:center;gap:14px;background:#15223f;color:#fff;padding:14px 18px;border-radius:6px}'+
+  '.logo{width:48px;height:48px;border-radius:50%;background:#c9a24a;color:#15223f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;letter-spacing:.5px;flex:none}'+
+  '.hdr .nm{font-size:19px;font-weight:800;letter-spacing:1px}.hdr .web{font-size:11px;color:#c9a24a;letter-spacing:.5px}'+
+  '.hdr .rt{margin-left:auto;text-align:right;font-size:11px;color:#c7d0e0}'+
+  'h1{font-size:17px;margin:18px 0 2px}.sub{color:#5b6677;font-size:12px;margin-bottom:12px}'+
+  'table{width:100%;border-collapse:collapse;margin-top:6px}th,td{padding:8px 10px;border-bottom:1px solid #e3e7ee;text-align:left}'+
+  'th{background:#eef1f6;color:#30405c;font-size:11px;text-transform:uppercase;letter-spacing:.4px}'+
+  'td.num{text-align:right;font-variant-numeric:tabular-nums}td.co{font-weight:600}'+
+  'tr.act td{background:#f4f6fa}.tagact{background:#30405c;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle}'+
+  'tr.best td{background:#eafaf0}.tagbest{background:#1f9d57;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle}'+
+  '.pos{color:#1f9d57;font-weight:700}.neg{color:#d0453b;font-weight:700}'+
+  '.reco{margin-top:14px;padding:11px 14px;background:#f7f4ea;border-left:4px solid #c9a24a;border-radius:4px;font-size:13px}'+
+  '.ft{margin-top:20px;border-top:1px solid #e3e7ee;padding-top:8px;color:#8a94a4;font-size:10.5px;display:flex;justify-content:space-between}'+
+  '@media print{.noprint{display:none}}.noprint{position:fixed;top:10px;right:10px}'+
+  '.btnp{background:#15223f;color:#fff;border:0;padding:9px 14px;border-radius:6px;font-size:13px;cursor:pointer}'+
+  '</style></head><body>'+
+  '<div class="noprint"><button class="btnp" onclick="window.print()">Imprimir / Guardar PDF</button></div>'+
+  '<div class="hdr"><div class="logo">GL</div><div><div class="nm">GRUPO LAFUENTE</div><div class="web">grupolafuente.net</div></div>'+
+  '<div class="rt">Comparativa de seguro<br>'+_today()+'</div></div>'+
+  '<h1>Comparativa — '+_esc(tipo||'Cotización')+'</h1>'+
+  '<div class="sub"><b>Asegurado:</b> '+_esc(aseg)+(nro?(' &nbsp;·&nbsp; <b>Póliza:</b> '+_esc(nro)):'')+(d.ramo?(' &nbsp;·&nbsp; <b>Ramo:</b> '+_esc(d.ramo)):'')+(d.periodo?(' &nbsp;·&nbsp; <b>Período:</b> '+_esc(d.periodo)):'')+'</div>'+
+  '<table><thead><tr><th>Compañía</th><th style="text-align:right">Premio</th><th style="text-align:right">Cuota mensual</th><th style="text-align:right">Dif. premio</th><th style="text-align:right">Dif. cuota</th></tr></thead><tbody>'+filas+'</tbody></table>'+
+  reco+
+  '<div class="ft"><span>Preparado por Grupo Lafuente · Documento informativo, sujeto a las condiciones de cada póliza.</span><span>grupolafuente.net</span></div>'+
+  '</body></html>';
+  var w=window.open('','_blank');
+  if(!w){ var m=document.getElementById('cmpMsg'); if(m)m.innerHTML='<span style="color:#ffcf7a">Permití las ventanas emergentes para abrir el PDF.</span>'; return; }
+  w.document.open(); w.document.write(html); w.document.close(); w.focus();
+  setTimeout(function(){ try{w.print();}catch(e){} }, 400);
+}
+function wireExport(){ var b=document.getElementById('cmpPdfOut'); if(b)b.onclick=genPDF; }
+
+function init(){ wirePdfReader(); wireExport(); }
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
+})();
+
+</script>
 <script>
 /* ===== Vida y Retiro (Fase 3 - Entrega A) ===== */
 (function(){
