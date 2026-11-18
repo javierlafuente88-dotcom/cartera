@@ -151,7 +151,6 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <button class="tab" data-t="cli">Clientes</button>
     <button class="tab" data-t="pol">Todas las pólizas</button>
     <button class="tab" data-t="sin">Siniestros <span class="cnt" id="sinCnt"></span></button>
-    <button class="tab" data-t="seg">📌 Seguimientos <span class="cnt" id="segCnt"></span></button>
     <button class="tab" data-t="ia">🤖 Asistente</button>
     <button class="tab" data-t="vr">💙 Vida y Retiro</button>
     <button class="tab" data-t="art">ART</button>
@@ -191,7 +190,6 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
         <div class="scroll"><table id="tcliRet"><thead></thead><tbody></tbody></table></div></div>
       <div class="panel hidden" id="pCliSin" style="margin-top:16px"><h2>Siniestros del cliente</h2>
         <div class="scroll"><table id="tcliSin"><thead></thead><tbody></tbody></table></div></div>
-      <div class="panel" id="pCliSeg" style="margin-top:16px"><h2>📌 Notas y seguimientos</h2><div id="cliSegList" style="margin-bottom:10px"></div><div style="display:flex;flex-direction:column;gap:8px"><textarea id="cliSegTxt" rows="3" placeholder="Nueva nota… (ej: Llamé a Martín, quiere cotizar flota nueva)" style="width:100%;resize:vertical;font:inherit;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:8px 10px"></textarea><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label style="font-size:13px;color:#8a97ad">Próximo seguimiento:</label><input type="date" id="cliSegDate"><button class="btn" id="cliSegAdd" type="button">Guardar nota</button><span id="cliSegMsg" class="muted" style="font-size:13px"></span></div></div></div>
     </div>
   </div>
 
@@ -199,8 +197,6 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
   <div id="vrModal" style="display:none;position:fixed;inset:0;background:rgba(5,8,15,.72);z-index:60;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px"><div style="background:#111726;border:1px solid #2a3346;border-radius:14px;max-width:820px;width:100%;padding:18px"><div id="vrFichaBody"></div></div></div>
 
   <div id="t-ia" class="hidden"><div class="panel"><div class="hh"><h2>🤖 Asistente IA <span class="muted" id="iaSub" style="font-weight:400">· responde con tu cartera en vivo</span></h2></div><div id="iaMsgs" style="display:flex;flex-direction:column;gap:10px;min-height:120px;max-height:52vh;overflow:auto;padding:4px 2px"></div><div id="iaChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px"></div><div style="display:flex;gap:8px"><input id="iaInp" placeholder="Preguntá o pedí algo… (ej: ¿qué vence esta semana?)" style="flex:1;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:10px 12px;font:inherit"><button class="btn" id="iaSend" type="button">Enviar</button></div></div></div>
-
-  <div id="t-seg" class="hidden"><div class="panel"><div class="hh"><h2>📌 Seguimientos <span class="muted" id="segSub" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><select id="segFilt" class="mini"><option value="pend">Pendientes</option><option value="all">Todos</option><option value="done">Hechos</option></select></div></div><div id="segBody"></div></div></div>
 
   <div id="t-pol" class="hidden"><div class="panel"><div class="hh"><h2>Listado de pólizas <span class="muted" id="penCnt" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><select id="fenv" class="mini"><option value="">Envío: todas</option><option value="pend">Pendientes de enviar</option><option value="env">Enviadas</option></select><button class="btn" id="importPdf" title="Leer un PDF de póliza y precargar el formulario">📄 Importar PDF</button><input type="file" id="pdfFile" accept="application/pdf" style="display:none"><button class="btn" id="addPol">+ Nueva póliza</button></div></div>
     <div class="scroll"><table id="tp"><thead></thead><tbody></tbody></table></div></div></div>
@@ -370,7 +366,7 @@ async function loadData(){
     const R=ret.filter(r=>String(r.ASEGURADO||'').trim()!=='').map((r,_ix)=>({_i:_ix,comp:String(r.COMPANIA||'').toUpperCase(),codigo:String(r.CODIGO||'').trim(),cli:String(r.ASEGURADO||''),doc:r.CUITODNI!=null?String(r.CUITODNI):'',sec:String(r.SECCION||'').trim(),plan:String(r.PLAN||''),nro:r.POLIZA!=null?String(r.POLIZA):'',inicio:isoG(r.INICIO),nac:isoG(r.FECHADENACIMIENTO),premio:r.PREMIO!=null?String(r.PREMIO):'',comision:r.COMISION!=null?String(r.COMISION):'',frec:String(r.FRECUENCIA||''),obs:String(r.GANANCIAMENSUAL||'')}));
     DATA={polizas:P,clientes:C,siniestros:S,art:A,retiro:R,contactos:_contactos};
     try{ const cm=await gvizCsv(701885564); DATA.comparativas=(cm&&cm.length&&('PREMIONUEVO' in cm[0]))?cm.filter(o=>String((o.ASEGURADO!=null?o.ASEGURADO:'')+(o.POLIZA!=null?o.POLIZA:'')+(o.PREMIONUEVO!=null?o.PREMIONUEVO:'')).trim()!==''):[]; }catch(e){ DATA.comparativas=[]; }
-    try{ const sg=await gviz('SEGUIMIENTOS'); DATA.seguimientos=(sg&&sg.length&&('NOTA' in sg[0])&&('ID' in sg[0]))?sg.filter(o=>String(o.NOTA!=null?o.NOTA:'').trim()!=='').map(o=>({id:String(o.ID!=null?o.ID:''),fecha:isoG(o.FECHA),doc:String(o.CUITODNI!=null?o.CUITODNI:''),cli:String(o.ASEGURADO||''),nota:String(o.NOTA||''),prox:isoG(o.PROXIMOSEGUIMIENTO),estado:(String(o.ESTADO||'pendiente').toLowerCase().indexOf('hech')>=0?'hecho':'pendiente'),prod:String(o.PRODUCTOR||'')})):[]; }catch(e){ DATA.seguimientos=[]; }
+    DATA.seguimientos=[];
     try{ var _vrs=await Promise.all(['VR_FICHAS','VR_CONTACTOS','VR_NOTAS','VR_VENTAS','VR_PROSPECTOS','VR_ARCHIVOS','VR_EQUIPO'].map(function(n){return gviz(n).catch(function(){return [];});}));
       var _vf=_vrs[0],_vc=_vrs[1],_vn=_vrs[2],_vv=_vrs[3],_vp=_vrs[4],_va=_vrs[5],_ve=_vrs[6];
       var vr={fichas:{},ids:{},contactos:[],notas:[],ventas:[],prospectos:[],archivos:[],equipo:[]};
@@ -460,7 +456,7 @@ function render(){
   (DATA.retiro||[]).forEach(r=>_actK.add(_uk(r.cli,r.doc)));
   const clientesAct=_actK.size;
   const sinAb=SIN.filter(s=>s.abierto).length;
-  document.getElementById('sinCnt').textContent=sinAb||'';var _segC=document.getElementById('segCnt');if(_segC)_segC.textContent=((DATA.seguimientos||[]).filter(function(x){return x.estado!=='hecho';}).length)||'';
+  document.getElementById('sinCnt').textContent=sinAb||'';
   document.getElementById('cards').innerHTML=[
     ['Clientes activos',clientesAct,'pólizas, ART o retiro activos',''],
     ['Pólizas vigentes',vig.length,'sobre '+rows.length+' filtradas',''],
@@ -588,7 +584,6 @@ function renderDetail(id){
   document.getElementById('pCliSin').classList.toggle('hidden',sinC.length===0);
   if(sinC.length){setHead('tcliSin',['','Compañía','Tipo','Nº Siniestro','Póliza','Patente','Fecha','Estado'],['','','','','','','','']);body('tcliSin',sinC,s=>{const cls=s.abierto?'b-y':'b-g';const dot=s.abierto?'y':'g';return `<tr><td><span class="dot ${dot}"></span></td><td>${s.comp||'—'}</td><td>${s.tipo||'—'}</td><td>${s.nro||'—'}</td><td>${s.pol||'—'}</td><td>${s.pat||'—'}</td><td>${dmy(s.fecha)}</td><td><span class="badge ${cls}">${s.est}</span></td></tr>`;});}
   document.getElementById('saveMsg').textContent='';
-  if(window._renderCliSeg)_renderCliSeg(id,nombre,docv);
 }
 document.getElementById('saveCli').addEventListener('click',async ()=>{
   const ov=OV[curCli]||{};
@@ -1246,7 +1241,7 @@ var _navT=document.getElementById('navToggle'),_navNav=document.getElementById('
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tb.classList.add('active');
   var _nn=document.getElementById('tabsNav'); if(_nn)_nn.classList.remove('open'); var _nl=document.getElementById('navToggleLbl'); if(_nl)_nl.textContent=tb.textContent.replace(/\s+/g,' ').trim();
-  ['venc','cli','pol','sin','seg','ia','vr','graf','art','ret','cross','compa','game','falt'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render(); if(tb.dataset.t==='seg'&&window.renderSeg)renderSeg(); if(tb.dataset.t==='ia'&&window.iaInit)iaInit(); if(tb.dataset.t==='vr'&&window.renderVR)renderVR();
+  ['venc','cli','pol','sin','ia','vr','graf','art','ret','cross','compa','game','falt'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render(); if(tb.dataset.t==='ia'&&window.iaInit)iaInit(); if(tb.dataset.t==='vr'&&window.renderVR)renderVR();
   if(tb.dataset.t==='cli'){curCli=null;document.getElementById('cli-detail').classList.add('hidden');document.getElementById('cli-list').classList.remove('hidden');}
   render();
 }));
@@ -1999,7 +1994,6 @@ window.iaSend=async function(text){
   var pr=parseAccion(r.text||'');
   wait.innerHTML=_esc(pr.clean||'(sin respuesta)').replace(/\n/g,'<br>');
   HIST.push({role:'a',text:pr.clean});
-  if(pr.act && pr.act.accion==='agregar_seguimiento') renderAccionCard(pr.act);
 };
 var CHIPS=['¿Qué vence esta semana?','Resumime la cartera','Redactá un WhatsApp de renovación','¿A quién le puedo vender un seguro de auto?'];
 window.iaInit=function(){
@@ -2011,79 +2005,6 @@ window.iaInit=function(){
   var ip=document.getElementById('iaInp'); if(ip)ip.addEventListener('keydown',function(e){ if(e.key==='Enter')iaSend(); });
   bubble('¡Hola Javier! Soy tu asistente de cartera. Puedo responder sobre tus pólizas y vencimientos, redactar mensajes y agendar seguimientos. Preguntá lo que quieras \U0001F447','a');
 };
-})();
-</script>
-<script>
-/* ===== CRM Seguimientos (Fase 1) ===== */
-(function(){
-function _nd(s){return String(s||'').replace(/\D/g,'');}
-function _nn(s){return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');}
-function _segKey(seg){var d=_nd(seg.doc); if(!d){var n=_nn(seg.cli); if(window._n2d&&window._n2d[n])d=window._n2d[n];} return d?('D'+d):('N'+_nn(seg.cli));}
-function _segEsc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-function _today(){var d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();}
-function _iso2dmy(v){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));return m?(m[3]+'/'+m[2]+'/'+m[1]):'';}
-function _dmyS(iso){return (typeof dmy==='function')?dmy(iso):(_iso2dmy(iso)||iso||'');}
-function _diasProx(iso){if(!iso)return null;var t=new Date();t.setHours(0,0,0,0);var d=new Date(iso+'T00:00:00');return Math.round((d-t)/86400000);}
-function _segItem(seg,showCli){
-  var dd=_diasProx(seg.prox); var done=seg.estado==='hecho'; var prox='';
-  if(seg.prox){var badge=done?'':(dd<0?'<span class="badge b-r">atrasado '+(-dd)+'d</span>':dd<=7?'<span class="badge b-y">en '+dd+'d</span>':'<span class="badge b-g">en '+dd+'d</span>');prox='<div style="font-size:12px;color:#8a97ad;margin-top:3px">⏰ '+_dmyS(seg.prox)+' '+badge+'</div>';}
-  var cli=showCli?('<a href="#" class="seg-cli" data-k="'+_segKey(seg)+'" style="color:#8fb4ff;text-decoration:none;font-weight:600">'+_segEsc(seg.cli||'(sin nombre)')+'</a> · '):'';
-  var acts=done?('<span class="muted" style="font-size:12px">✓ hecho</span>'):('<button class="btn sec" style="padding:4px 8px;font-size:12px" data-segdone="'+_segEsc(seg.id)+'">Marcar hecho</button>');
-  acts+=' <button class="btn sec" style="padding:4px 8px;font-size:12px;color:#ff8585;border-color:#5a2b2b" data-segdel="'+_segEsc(seg.id)+'">Borrar</button>';
-  return '<div class="seg-note" style="background:#1d2536;border:1px solid #2a3346;border-left:3px solid '+(done?'#37c66b':(seg.prox?'#ffcf7a':'#3f7cf6'))+';border-radius:8px;padding:9px 10px;margin-bottom:8px;'+(done?'opacity:.6':'')+'"><div style="font-size:12px;color:#8a97ad;margin-bottom:3px">'+cli+_dmyS(seg.fecha)+(seg.prod?' · '+_segEsc(seg.prod):'')+'</div><div style="white-space:pre-wrap">'+_segEsc(seg.nota)+'</div>'+prox+'<div style="margin-top:6px">'+acts+'</div></div>';
-}
-function _wireSegBtns(root){
-  root.querySelectorAll('[data-segdone]').forEach(function(b){b.onclick=function(){segDone(b.getAttribute('data-segdone'));};});
-  root.querySelectorAll('[data-segdel]').forEach(function(b){b.onclick=function(){segDelete(b.getAttribute('data-segdel'));};});
-  root.querySelectorAll('.seg-cli').forEach(function(a){a.onclick=function(e){e.preventDefault();var k=a.getAttribute('data-k');var tb=document.querySelector('.tab[data-t="cli"]');if(tb)tb.click();if(window.openCliente)openCliente(k);};});
-}
-window.renderSeg=function(){
-  var body=document.getElementById('segBody'); if(!body)return;
-  var list=(DATA.seguimientos||[]).slice();
-  var filt=(document.getElementById('segFilt')||{}).value||'pend';
-  var shown=list.filter(function(s){return filt==='all'?true:filt==='done'?s.estado==='hecho':s.estado!=='hecho';});
-  shown.sort(function(a,b){var da=a.prox||'9999',db=b.prox||'9999';return da<db?-1:da>db?1:0;});
-  var pend=list.filter(function(s){return s.estado!=='hecho';}).length;
-  var sub=document.getElementById('segSub'); if(sub)sub.textContent=pend?('· '+pend+' pendiente'+(pend>1?'s':'')):'· sin pendientes';
-  if(!shown.length){body.innerHTML='<div class="muted" style="padding:10px">No hay seguimientos para mostrar. Abrí un cliente y agregá una nota.</div>';return;}
-  body.innerHTML=shown.map(function(s){return _segItem(s,true);}).join('');
-  _wireSegBtns(body);
-};
-window._renderCliSeg=function(id,nombre,docv){
-  var list=document.getElementById('cliSegList'); if(!list)return;
-  var mine=(DATA.seguimientos||[]).filter(function(s){return _segKey(s)===id;});
-  mine.sort(function(a,b){return (b.fecha||'')<(a.fecha||'')?-1:1;});
-  list.innerHTML=mine.length?mine.map(function(s){return _segItem(s,false);}).join(''):'<div class="muted" style="font-size:13px">Sin notas todavía.</div>';
-  _wireSegBtns(list);
-  var btn=document.getElementById('cliSegAdd');
-  if(btn)btn.onclick=function(){segAdd(id,nombre,docv);};
-};
-window.segAdd=async function(id,nombre,docv){
-  var txtEl=document.getElementById('cliSegTxt'),dtEl=document.getElementById('cliSegDate'),msg=document.getElementById('cliSegMsg');
-  var txt=(txtEl&&txtEl.value||'').trim(); if(!txt){if(msg)msg.textContent='Escribí una nota.';return;}
-  var dtIso=(dtEl&&dtEl.value)||''; var sid='SG'+Date.now();
-  var row={ID:sid,Fecha:_today(),'Cuit o Dni':docv||'',Asegurado:nombre||'',Nota:txt,'Proximo Seguimiento':_iso2dmy(dtIso),Estado:'pendiente',Productor:'JL'};
-  if(msg)msg.textContent='Guardando…';
-  if(!BK_OK){await bk({action:'ping'});}
-  var r=await bk({action:'append',sheet:'SEGUIMIENTOS',row:JSON.stringify(row)});
-  if(r&&r.ok){
-    if(!DATA.seguimientos)DATA.seguimientos=[];
-    DATA.seguimientos.unshift({id:sid,fecha:new Date().toISOString().slice(0,10),doc:docv||'',cli:nombre||'',nota:txt,prox:dtIso,estado:'pendiente',prod:'JL'});
-    if(txtEl)txtEl.value=''; if(dtEl)dtEl.value=''; if(msg)msg.textContent='';
-    _renderCliSeg(id,nombre,docv); if(window.renderSeg)renderSeg(); if(window.render)render();
-  } else { if(msg)msg.innerHTML='<span style="color:#ff8585">No se pudo guardar. Probá de nuevo.</span>'; }
-};
-window.segDone=async function(sid){
-  var r=await bk({action:'update',sheet:'SEGUIMIENTOS',keyCol:'ID',keyVal:sid,fields:JSON.stringify({Estado:'hecho'})});
-  if(r&&r.ok){var it=(DATA.seguimientos||[]).find(function(x){return x.id===sid;});if(it)it.estado='hecho';if(window.renderSeg)renderSeg();if(window.render)render();if(typeof curCli!=='undefined'&&curCli)_reopenCli();}
-};
-window.segDelete=async function(sid){
-  if(!confirm('¿Borrar esta nota de seguimiento?'))return;
-  var r=await bk({action:'deleteMatch',sheet:'SEGUIMIENTOS',match:JSON.stringify({ID:sid})});
-  if(r&&r.ok){DATA.seguimientos=(DATA.seguimientos||[]).filter(function(x){return x.id!==sid;});if(window.renderSeg)renderSeg();if(window.render)render();if(typeof curCli!=='undefined'&&curCli)_reopenCli();}
-};
-function _reopenCli(){ try{ if(curCli&&window.openCliente){var k=curCli;openCliente(k);} }catch(e){} }
-var _ff=document.getElementById('segFilt'); if(_ff)_ff.addEventListener('change',function(){if(window.renderSeg)renderSeg();});
 })();
 </script>
 </body>
