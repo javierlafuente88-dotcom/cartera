@@ -195,7 +195,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     </div>
   </div>
 
-  <div id="t-vr" class="hidden"><div class="panel"><div class="hh"><h2>💙 Vida y Retiro <span class="muted" id="vrSub" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><button class="btn sec mini" onclick="if(window.vrAddProspecto)vrAddProspecto()">+ Prospecto</button></div></div><div id="vrChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px"></div><div id="vrBody"></div></div></div>
+  <div id="t-vr" class="hidden"><div class="panel"><div class="hh"><h2>💙 Vida y Retiro <span class="muted" id="vrSub" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><button class="btn sec mini" onclick="if(window.vrAnalisis)vrAnalisis()">📊 Análisis</button><button class="btn sec mini" onclick="if(window.vrAddProspecto)vrAddProspecto()">+ Prospecto</button></div></div><div id="vrChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px"></div><div id="vrBody"></div></div></div>
   <div id="vrModal" style="display:none;position:fixed;inset:0;background:rgba(5,8,15,.72);z-index:60;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px"><div style="background:#111726;border:1px solid #2a3346;border-radius:14px;max-width:820px;width:100%;padding:18px"><div id="vrFichaBody"></div></div></div>
 
   <div id="t-ia" class="hidden"><div class="panel"><div class="hh"><h2>🤖 Asistente IA <span class="muted" id="iaSub" style="font-weight:400">· responde con tu cartera en vivo</span></h2></div><div id="iaMsgs" style="display:flex;flex-direction:column;gap:10px;min-height:120px;max-height:52vh;overflow:auto;padding:4px 2px"></div><div id="iaChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px"></div><div style="display:flex;gap:8px"><input id="iaInp" placeholder="Preguntá o pedí algo… (ej: ¿qué vence esta semana?)" style="flex:1;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:10px 12px;font:inherit"><button class="btn" id="iaSend" type="button">Enviar</button></div></div></div>
@@ -1803,9 +1803,21 @@ function _wireVRFicha(o){
   document.getElementById('vrClose').onclick=function(){document.getElementById('vrModal').style.display='none';};
   document.getElementById('vrSave').onclick=async function(){
     _msg('vrMsg','Guardando…');
-    var fields={Estado:document.getElementById('vrEstado').value,Prioridad:document.getElementById('vrPrio').value,Proximo:_iso2dmy(document.getElementById('vrProx').value),'Proximo Hora':document.getElementById('vrProxH').value,Responsable:document.getElementById('vrResp').value,Actualizado:_todayDmy()};
+    var proxIso=document.getElementById('vrProx').value, hora=document.getElementById('vrProxH').value;
+    var fields={Estado:document.getElementById('vrEstado').value,Prioridad:document.getElementById('vrPrio').value,Proximo:_iso2dmy(proxIso),'Proximo Hora':hora,Responsable:document.getElementById('vrResp').value,Actualizado:_todayDmy()};
     var r=await vrUpsertFicha(id,fields);
-    if(r&&r.ok){_msg('vrMsg','✓ Guardado','#37c66b'); renderVR();} else _msg('vrMsg','No se pudo guardar','#ff8585');
+    if(!r||!r.ok){_msg('vrMsg','No se pudo guardar','#ff8585');return;}
+    _msg('vrMsg','✓ Guardado','#37c66b'); renderVR();
+    var evId=(DATA.vr.fichas[id]||{}).calEventId||'';
+    if(proxIso){
+      _msg('vrMsg','✓ Guardado · agendando…','#37c66b');
+      var cr=await bk({action:'calEvent',date:proxIso,hora:hora||'',title:'Contacto V/R: '+(o.cli||''),desc:'Seguimiento vida y retiro — '+(o.cli||''),eventId:evId});
+      if(cr&&cr.ok&&cr.eventId){ await vrUpsertFicha(id,{'Cal Event Id':cr.eventId}); _msg('vrMsg','✓ Guardado y agendado en tu calendario','#37c66b'); }
+      else if(cr&&/desconocida/i.test(cr.error||'')){ _msg('vrMsg','✓ Guardado (el backend aún no tiene calendario)','#ffcf7a'); }
+      else { _msg('vrMsg','✓ Guardado (no se pudo agendar: ¿autorizaste el calendario?)','#ffcf7a'); }
+    } else if(evId){
+      await bk({action:'calEvent',del:'1',eventId:evId}); await vrUpsertFicha(id,{'Cal Event Id':''});
+    }
   };
   document.getElementById('vrSaveDatos').onclick=async function(){
     _msg('vrMsg2','Guardando…');
@@ -1850,6 +1862,34 @@ window.vrAddProspecto=async function(){
   var row={ID:'P'+Date.now(),Nombre:nombre,Interes:interes,Origen:origen,Creado:_todayDmy()};
   var r=await vrAddChild('VR_PROSPECTOS',row,'prospectos');
   if(r&&r.ok)renderVR();
+};
+window.vrAnalisis=function(){
+  var all=vrBuild();
+  var cont=(DATA.vr.contactos||[]), ventas=(DATA.vr.ventas||[]);
+  var byEstado={}; ESTADOS.forEach(function(e){byEstado[e]=0;});
+  all.forEach(function(o){ byEstado[o.estado]=(byEstado[o.estado]||0)+1; });
+  var contactados=all.filter(function(o){return o.estado!=='Sin contactar';}).length;
+  var vendidos=byEstado['Vendido']||0;
+  var cierre=contactados?Math.round(vendidos/contactados*100):0;
+  var contPorCierre=vendidos?(cont.length/vendidos).toFixed(1):'—';
+  var porProducto={}; ventas.forEach(function(v){var pr=v.producto||'Otro'; porProducto[pr]=(porProducto[pr]||0)+1;});
+  var primaTot=ventas.reduce(function(a,v){return a+_num(v.prima);},0);
+  function bar(label,n,max,col){var w=max?Math.round(n/max*100):0; return '<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+label+'</span><b>'+n+'</b></div><div style="background:#0f1726;border-radius:6px;height:10px;overflow:hidden"><div style="height:100%;width:'+w+'%;background:'+(col||'#3f7cf6')+'"></div></div></div>';}
+  var maxE=Math.max.apply(null,ESTADOS.map(function(e){return byEstado[e]||0;}).concat([1]));
+  var html='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:18px;font-weight:600">📊 Análisis Vida y Retiro</div><button class="btn sec" onclick="document.getElementById(&#39;vrModal&#39;).style.display=&#39;none&#39;">Cerrar</button></div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin:14px 0">';
+  html+='<div class="card"><div class="muted" style="font-size:11px">CANDIDATOS</div><div style="font-size:22px;font-weight:700">'+all.length+'</div></div>';
+  html+='<div class="card"><div class="muted" style="font-size:11px">CONTACTADOS</div><div style="font-size:22px;font-weight:700">'+contactados+'</div></div>';
+  html+='<div class="card"><div class="muted" style="font-size:11px">% CIERRE</div><div style="font-size:22px;font-weight:700">'+cierre+'%</div></div>';
+  html+='<div class="card"><div class="muted" style="font-size:11px">VENTAS</div><div style="font-size:22px;font-weight:700">'+ventas.length+'</div></div>';
+  html+='<div class="card"><div class="muted" style="font-size:11px">PRIMA MENSUAL</div><div style="font-size:22px;font-weight:700">'+_fmt(primaTot)+'</div></div>';
+  html+='</div>';
+  html+='<div class="panel"><h2>Embudo por estado</h2>'+ESTADOS.map(function(e){return bar(e,byEstado[e]||0,maxE,_estCol(e));}).join('')+'</div>';
+  var prodKeys=Object.keys(porProducto);
+  html+='<div class="panel" style="margin-top:12px"><h2>Ventas por producto</h2>'+(prodKeys.length?prodKeys.map(function(pr){return bar(pr,porProducto[pr],ventas.length||1,'#37c66b');}).join(''):'<div class="muted">Sin ventas cargadas.</div>')+'</div>';
+  html+='<div class="muted" style="font-size:12px;margin-top:10px">Contactos por cierre: '+contPorCierre+' · Total de contactos registrados: '+cont.length+'</div>';
+  document.getElementById('vrFichaBody').innerHTML=html;
+  document.getElementById('vrModal').style.display='flex';
 };
 })();
 
