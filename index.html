@@ -1669,7 +1669,7 @@ function genPDF(){
   var html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Comparativa '+_esc(aseg)+'</title><style>'+
   '@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#1c2430;margin:0}'+
   '.hdr{display:flex;align-items:center;gap:14px;background:#15223f;color:#fff;padding:14px 18px;border-radius:6px}'+
-  '.logo{width:48px;height:48px;border-radius:50%;background:#c9a24a;color:#15223f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:none}'+
+  '.logo{height:54px;width:auto;flex:none}'+
   '.hdr .nm{font-size:19px;font-weight:800;letter-spacing:1px}.hdr .web{font-size:11px;color:#c9a24a;letter-spacing:.5px}'+
   '.hdr .rt{margin-left:auto;text-align:right;font-size:11px;color:#c7d0e0}'+
   'h1{font-size:17px;margin:18px 0 2px}.sub{color:#5b6677;font-size:12px;margin-bottom:12px}'+
@@ -1685,7 +1685,7 @@ function genPDF(){
   '.btnp{background:#15223f;color:#fff;border:0;padding:9px 14px;border-radius:6px;font-size:13px;cursor:pointer}'+
   '</style></head><body>'+
   '<div class="noprint"><button class="btnp" onclick="window.print()">Imprimir / Guardar PDF</button></div>'+
-  '<div class="hdr"><div class="logo">GL</div><div><div class="nm">GRUPO LAFUENTE</div><div class="web">grupolafuente.net</div></div>'+
+  '<div class="hdr"><img class="logo" src="https://grupolafuente.net/wp-content/uploads/2025/12/Vector-115-1.webp" alt="Grupo Lafuente" onerror="this.style.display=\'none\'"><div><div class="nm">GRUPO LAFUENTE</div><div class="web">grupolafuente.net</div></div>'+
   '<div class="rt">Comparativa de seguro<br>'+_today()+'</div></div>'+
   '<h1>Comparativa — '+_esc(tipo||'Cotización')+'</h1>'+
   '<div class="sub"><b>Asegurado:</b> '+_esc(aseg)+(nro?(' &nbsp;·&nbsp; <b>Póliza:</b> '+_esc(nro)):'')+(d.ramo?(' &nbsp;·&nbsp; <b>Ramo:</b> '+_esc(d.ramo)):'')+(d.periodo?(' &nbsp;·&nbsp; <b>Período:</b> '+_esc(d.periodo)):'')+'</div>'+
@@ -1696,7 +1696,11 @@ function genPDF(){
   var w=window.open('','_blank');
   if(!w){ if(msgEl)msgEl.innerHTML='<span style="color:#ffcf7a">Permití las ventanas emergentes para abrir el PDF.</span>'; return; }
   w.document.open(); w.document.write(html); w.document.close(); w.focus();
-  setTimeout(function(){ try{w.print();}catch(e){} }, 400);
+  var _tp=function(){ try{w.print();}catch(e){} };
+  try{ var im=w.document.querySelector('.hdr img');
+    if(im&&!im.complete){ im.addEventListener('load',function(){setTimeout(_tp,300);}); im.addEventListener('error',function(){setTimeout(_tp,200);}); setTimeout(_tp,2500); }
+    else { setTimeout(_tp,500); }
+  }catch(e){ setTimeout(_tp,700); }
   if(msgEl)msgEl.innerHTML='<span style="color:#5fd98a">PDF generado — usá “Imprimir / Guardar PDF”.</span>';
 }
 function wireExport(){ var b=document.getElementById('cmpPdfOut'); if(b)b.onclick=genPDF; }
