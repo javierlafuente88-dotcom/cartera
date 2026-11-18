@@ -613,6 +613,7 @@ document.getElementById('backCli').addEventListener('click',()=>{curCli=null;doc
 document.getElementById('tc').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr)openCliente(tr.dataset.id);});
 document.getElementById('tcross').addEventListener('click',e=>{const tr=e.target.closest('tr[data-id]');if(tr){document.querySelector('.tab[data-t="cli"]').click();openCliente(tr.dataset.id);}});
 let _cmpPolMap={}; let _cmpQuotes=[{comp:'',premio:'',cuota:''}];
+window._cmpAPI={get:function(){return {cur:(typeof _cur==='function'?_cur():{}),quotes:_cmpQuotes};},setQuotes:function(a){_cmpQuotes=(a&&a.length)?a:[{comp:'',premio:'',cuota:''}];_cmpRenderQuotes();if(typeof _cmpSummary==='function')_cmpSummary();}};
 function _cmpAsegPols(){
   const a=(document.getElementById('cmpAseg').value||'').trim().toUpperCase();
   const sel=document.getElementById('cmpPol'); _cmpPolMap={};
@@ -1602,12 +1603,13 @@ window.PDFIMP=(function(){
 <script>
 /* ===== Comparativas: lector PDF + exportar PDF (Grupo Lafuente) ===== */
 (function(){
+function _n(v){ if(v==null||v==='')return null; var s=String(v).replace(/[$\s]/g,''); if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.'); var n=parseFloat(s); return isNaN(n)?null:n; }
 function _money(n){ if(n==null||n===''||isNaN(n))return '—'; try{return '$'+Math.round(n).toLocaleString('es-AR');}catch(e){return '$'+Math.round(n);} }
 function _esc(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
 function _pct(n){ return (n>0?'+':'')+n.toFixed(1)+'%'; }
 function _today(){var d=new Date();return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();}
 
-/* ---- Lector de PDF: carga una cotización y arma una fila ---- */
+/* ---- Lector de PDF: carga una cotización y la vuelca en una fila ---- */
 function wirePdfReader(){
   var btn=document.getElementById('cmpPdfBtn'), inp=document.getElementById('cmpPdfInp'), msg=document.getElementById('cmpPdfMsg');
   if(!btn||!inp)return;
@@ -1615,79 +1617,67 @@ function wirePdfReader(){
   inp.onchange=async function(){
     var f=inp.files&&inp.files[0]; if(!f)return;
     if(!window.PDFIMP){ if(msg)msg.textContent='Módulo PDF no disponible'; return; }
+    if(!window._cmpAPI){ if(msg)msg.textContent='Abrí la solapa Comparativas y elegí un asegurado primero.'; return; }
     if(msg)msg.textContent='Leyendo PDF…';
     try{
       var buf=await f.arrayBuffer();
       var text=await window.PDFIMP.extractText(buf.slice(0));
       var d=window.PDFIMP.parse(text)||{};
+      var q=(window._cmpAPI.get().quotes||[]).map(function(x){return {comp:x.comp,premio:x.premio,cuota:x.cuota};});
       var row={comp:d.compania||'', premio:(d.premio!=null?String(d.premio):''), cuota:(d.cuota!=null?String(d.cuota):'')};
-      // si la unica fila esta vacia, la reemplazo; si no, agrego
-      if(_cmpQuotes.length===1 && !(_cmpQuotes[0].comp||_cmpQuotes[0].premio||_cmpQuotes[0].cuota)){ _cmpQuotes[0]=row; }
-      else { _cmpQuotes.push(row); }
-      if(window._cmpRenderQuotes)_cmpRenderQuotes();
-      if(window._cmpSummary)_cmpSummary();
-      var leido=[d.compania?('compañía: '+d.compania):'', d.premio?('premio: '+_money(num(d.premio))):'', d.cuota?('cuota: '+_money(num(d.cuota))):''].filter(Boolean).join(' · ');
-      if(msg)msg.innerHTML=leido?('✓ Leído — '+_esc(leido)+(!d.premio&&!d.cuota?' (revisá los montos)':'')):'No pude leer los montos; completalos a mano.';
+      if(q.length===1 && !(q[0].comp||q[0].premio||q[0].cuota)){ q[0]=row; } else { q.push(row); }
+      window._cmpAPI.setQuotes(q);
+      var leido=[d.compania?('compañía: '+d.compania):'', d.premio?('premio: '+_money(_n(d.premio))):'', d.cuota?('cuota: '+_money(_n(d.cuota))):''].filter(Boolean).join(' · ');
+      if(msg)msg.innerHTML=leido?('✓ Leído — '+_esc(leido)+((!d.premio&&!d.cuota)?' (revisá los montos)':'')):'Leí el PDF pero no detecté los montos; completalos a mano.';
     }catch(e){ if(msg)msg.textContent='No se pudo leer el PDF.'; }
   };
 }
 
 /* ---- Generar PDF comparativo con la marca ---- */
-function buildRows(){
-  var d=(window._cur?_cur():{})||{};
-  var paAct=d.pa, pmAct=d.pm;
-  var rows=[];
-  // fila actual
-  rows.push({comp:(d.comp||'Actual'), premio:paAct, cuota:pmAct, actual:true});
-  (_cmpQuotes||[]).forEach(function(q){
-    var pr=num(q.premio), cu=num(q.cuota);
-    if(pr==null&&cu==null&&!(q.comp||'').trim())return;
-    rows.push({comp:(q.comp||'(sin nombre)'), premio:pr, cuota:cu, actual:false, paAct:paAct, pmAct:pmAct});
-  });
-  return {d:d, rows:rows};
-}
 function genPDF(){
   var aseg=(document.getElementById('cmpAseg')||{}).value||'';
   var nro=(document.getElementById('cmpPol')||{}).value||'';
   var tipo=(document.getElementById('cmpTipo')||{}).value||'';
-  var bb=buildRows(); var d=bb.d, rows=bb.rows;
-  if(!aseg||rows.length<=1){ var m=document.getElementById('cmpMsg'); if(m)m.innerHTML='<span style="color:#ff8585">Elegí un asegurado y cargá al menos una cotización.</span>'; return; }
-  // mejor opcion por premio (excluye la actual)
-  var quotes=rows.filter(function(r){return !r.actual && r.premio!=null;});
-  var best=quotes.slice().sort(function(a,b){return a.premio-b.premio;})[0];
-  var ahorro=(best&&d.pa!=null)?(d.pa-best.premio):null;
+  var msgEl=document.getElementById('cmpMsg');
+  var st=window._cmpAPI?window._cmpAPI.get():{cur:{},quotes:[]};
+  var d=st.cur||{}, quotes=(st.quotes||[]);
+  var paAct=(d.pa!=null?d.pa:null), pmAct=(d.pm!=null?d.pm:null);
+  var rows=[{comp:(d.comp||'Actual'),premio:paAct,cuota:pmAct,actual:true}];
+  quotes.forEach(function(q){
+    var pr=_n(q.premio), cu=_n(q.cuota);
+    if(pr==null&&cu==null&&!(q.comp||'').trim())return;
+    rows.push({comp:(q.comp||'(sin nombre)'),premio:pr,cuota:cu,actual:false,paAct:paAct,pmAct:pmAct});
+  });
+  if(!aseg || rows.length<=1){ if(msgEl)msgEl.innerHTML='<span style="color:#ff8585">Elegí un asegurado y cargá al menos una cotización.</span>'; return; }
+  var quotesOnly=rows.filter(function(r){return !r.actual && r.premio!=null;});
+  var best=quotesOnly.slice().sort(function(a,b){return a.premio-b.premio;})[0];
+  var ahorro=(best&&paAct!=null)?(paAct-best.premio):null;
   function cell(r){
     var dpr='—', dcu='—', prc='', crc='';
     if(!r.actual){
-      if(r.premio!=null&&r.paAct!=null){ var m=r.premio-r.paAct; var p=r.paAct?(m/r.paAct*100):0; dpr=_money(r.premio-r.paAct)+' ('+_pct(p)+')'; prc=m<0?'pos':'neg'; }
-      if(r.cuota!=null&&r.pmAct!=null){ var m2=r.cuota-r.pmAct; var p2=r.pmAct?(m2/r.pmAct*100):0; dcu=_money(r.cuota-r.pmAct)+' ('+_pct(p2)+')'; crc=m2<0?'pos':'neg'; }
+      if(r.premio!=null&&r.paAct!=null){ var m=r.premio-r.paAct, p=r.paAct?(m/r.paAct*100):0; dpr=_money(m)+' ('+_pct(p)+')'; prc=m<0?'pos':(m>0?'neg':''); }
+      if(r.cuota!=null&&r.pmAct!=null){ var m2=r.cuota-r.pmAct, p2=r.pmAct?(m2/r.pmAct*100):0; dcu=_money(m2)+' ('+_pct(p2)+')'; crc=m2<0?'pos':(m2>0?'neg':''); }
     }
     var isBest=best&&!r.actual&&r.comp===best.comp&&r.premio===best.premio;
     return '<tr class="'+(r.actual?'act':'')+(isBest?' best':'')+'">'+
       '<td class="co">'+_esc(r.comp)+(r.actual?' <span class="tagact">ACTUAL</span>':'')+(isBest?' <span class="tagbest">MEJOR</span>':'')+'</td>'+
-      '<td class="num">'+_money(r.premio)+'</td>'+
-      '<td class="num">'+_money(r.cuota)+'</td>'+
-      '<td class="num '+prc+'">'+dpr+'</td>'+
-      '<td class="num '+crc+'">'+dcu+'</td></tr>';
+      '<td class="num">'+_money(r.premio)+'</td><td class="num">'+_money(r.cuota)+'</td>'+
+      '<td class="num '+prc+'">'+dpr+'</td><td class="num '+crc+'">'+dcu+'</td></tr>';
   }
   var filas=rows.map(cell).join('');
-  var reco='';
-  if(best){
-    reco='<div class="reco"><b>Recomendación:</b> la opción más conveniente es <b>'+_esc(best.comp)+'</b> con un premio de '+_money(best.premio)+
-      (ahorro!=null&&ahorro>0?(' — un ahorro estimado de <b>'+_money(ahorro)+'</b> frente a la póliza actual.'):'.')+'</div>';
-  }
+  var reco=best?('<div class="reco"><b>Recomendación:</b> la opción más conveniente es <b>'+_esc(best.comp)+'</b> con un premio de '+_money(best.premio)+(ahorro!=null&&ahorro>0?(' — un ahorro estimado de <b>'+_money(ahorro)+'</b> frente a la póliza actual.'):'.')+'</div>'):'';
   var html='<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Comparativa '+_esc(aseg)+'</title><style>'+
   '@page{size:A4;margin:13mm}*{box-sizing:border-box}body{font:13px/1.45 Arial,Helvetica,sans-serif;color:#1c2430;margin:0}'+
   '.hdr{display:flex;align-items:center;gap:14px;background:#15223f;color:#fff;padding:14px 18px;border-radius:6px}'+
-  '.logo{width:48px;height:48px;border-radius:50%;background:#c9a24a;color:#15223f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;letter-spacing:.5px;flex:none}'+
+  '.logo{width:48px;height:48px;border-radius:50%;background:#c9a24a;color:#15223f;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:20px;flex:none}'+
   '.hdr .nm{font-size:19px;font-weight:800;letter-spacing:1px}.hdr .web{font-size:11px;color:#c9a24a;letter-spacing:.5px}'+
   '.hdr .rt{margin-left:auto;text-align:right;font-size:11px;color:#c7d0e0}'+
   'h1{font-size:17px;margin:18px 0 2px}.sub{color:#5b6677;font-size:12px;margin-bottom:12px}'+
   'table{width:100%;border-collapse:collapse;margin-top:6px}th,td{padding:8px 10px;border-bottom:1px solid #e3e7ee;text-align:left}'+
   'th{background:#eef1f6;color:#30405c;font-size:11px;text-transform:uppercase;letter-spacing:.4px}'+
   'td.num{text-align:right;font-variant-numeric:tabular-nums}td.co{font-weight:600}'+
-  'tr.act td{background:#f4f6fa}.tagact{background:#30405c;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle}'+
-  'tr.best td{background:#eafaf0}.tagbest{background:#1f9d57;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;vertical-align:middle}'+
+  'tr.act td{background:#f4f6fa}.tagact{background:#30405c;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px}'+
+  'tr.best td{background:#eafaf0}.tagbest{background:#1f9d57;color:#fff;font-size:9px;padding:1px 5px;border-radius:4px}'+
   '.pos{color:#1f9d57;font-weight:700}.neg{color:#d0453b;font-weight:700}'+
   '.reco{margin-top:14px;padding:11px 14px;background:#f7f4ea;border-left:4px solid #c9a24a;border-radius:4px;font-size:13px}'+
   '.ft{margin-top:20px;border-top:1px solid #e3e7ee;padding-top:8px;color:#8a94a4;font-size:10.5px;display:flex;justify-content:space-between}'+
@@ -1704,12 +1694,12 @@ function genPDF(){
   '<div class="ft"><span>Preparado por Grupo Lafuente · Documento informativo, sujeto a las condiciones de cada póliza.</span><span>grupolafuente.net</span></div>'+
   '</body></html>';
   var w=window.open('','_blank');
-  if(!w){ var m=document.getElementById('cmpMsg'); if(m)m.innerHTML='<span style="color:#ffcf7a">Permití las ventanas emergentes para abrir el PDF.</span>'; return; }
+  if(!w){ if(msgEl)msgEl.innerHTML='<span style="color:#ffcf7a">Permití las ventanas emergentes para abrir el PDF.</span>'; return; }
   w.document.open(); w.document.write(html); w.document.close(); w.focus();
   setTimeout(function(){ try{w.print();}catch(e){} }, 400);
+  if(msgEl)msgEl.innerHTML='<span style="color:#5fd98a">PDF generado — usá “Imprimir / Guardar PDF”.</span>';
 }
 function wireExport(){ var b=document.getElementById('cmpPdfOut'); if(b)b.onclick=genPDF; }
-
 function init(){ wirePdfReader(); wireExport(); }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init); else init();
 })();
