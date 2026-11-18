@@ -1674,7 +1674,14 @@ window.iaSend=async function(text){
   var wait=bubble('<span class="muted">pensando...</span>','a');
   var ctx=iaCtx(q);
   var hist=HIST.slice(-7,-1).map(function(h){return (h.role==='u'?'Javier: ':'Asistente: ')+h.text;}).join('\n');
-  var r=await bk({action:'ai',q:q,ctx:ctx,h:hist});
+  var r=null;
+  for(var _att=0;_att<3;_att++){
+    r=await bk({action:'ai',q:q,ctx:ctx,h:hist});
+    if(r&&r.ok)break;
+    var _e=(r&&r.error)||'sin_conexion';
+    if(_e!=='timeout'&&_e!=='API_503'&&_e!=='sin_conexion')break;
+    if(_att<2){ try{wait.innerHTML='<span class="muted">pensando… (reintentando '+(_att+2)+'/3)</span>';}catch(e){} await new Promise(function(res){setTimeout(res,2500);}); }
+  }
   if(!r||!r.ok){
     var em=(r&&r.error)||'sin_conexion';
     if(em==='FALTA_API_KEY'){ wait.innerHTML='⚙️ Falta cargar la clave de Gemini en el Apps Script (propiedad <b>GEMINI_KEY</b>). Cuando la pongas y redeployes, el asistente funciona.'; }
