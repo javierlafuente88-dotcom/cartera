@@ -296,7 +296,7 @@ let DATA={polizas:[],clientes:[],siniestros:[]};
 const BACKEND_URL='https://script.google.com/macros/s/AKfycbwYf1mzOHw8-8SJvbd9Htsf6pAxsTZ7WViWBKXqpNImIprRsMK0A2F5F5n7FbTKl2QCQQ/exec';
 let BK_OK=false;
 function setDot(){var e=document.getElementById('bkstatus');if(!e)return;e.innerHTML='<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+(BK_OK?'#37c66b':'#ff5a5a')+';margin-right:6px;vertical-align:middle"></span>'+(BK_OK?'Conectado al sheet (edición activa)':'Sin conexión con el sheet — no guardes cambios');e.style.color=BK_OK?'#5fd98a':'#ff8585';}
-function bk(params){return new Promise(function(res){var done=false;var cb='__bk_'+Math.floor(Math.random()*1e9);var s=document.createElement('script');window[cb]=function(d){if(done)return;done=true;try{delete window[cb];}catch(e){}if(s.parentNode)s.parentNode.removeChild(s);BK_OK=!!(d&&d.ok);setDot();res(d);};var qs=Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');s.src=BACKEND_URL+'?'+qs+'&callback='+cb;s.onerror=function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'sin_conexion'});};document.head.appendChild(s);setTimeout(function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'timeout'});},13000);});}
+function bk(params,timeoutMs){return new Promise(function(res){var done=false;var cb='__bk_'+Math.floor(Math.random()*1e9);var s=document.createElement('script');window[cb]=function(d){if(done)return;done=true;try{delete window[cb];}catch(e){}if(s.parentNode)s.parentNode.removeChild(s);BK_OK=!!(d&&d.ok);setDot();res(d);};var qs=Object.keys(params).map(function(k){return k+'='+encodeURIComponent(params[k]);}).join('&');s.src=BACKEND_URL+'?'+qs+'&callback='+cb;s.onerror=function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'sin_conexion'});};document.head.appendChild(s);setTimeout(function(){if(done)return;done=true;BK_OK=false;setDot();res({ok:false,error:'timeout'});},timeoutMs||13000);});}
 function nk(s){return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Z0-9]/g,'');}
 function gvizUrl(tab){return 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&headers=1&sheet='+encodeURIComponent(tab);}
 function parseCSV(text){var rows=[],row=[],cur='',q=false,ch;for(var i=0;i<text.length;i++){ch=text[i];if(q){if(ch==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}else{if(ch==='"')q=true;else if(ch===','){row.push(cur);cur='';}else if(ch==='\n'){row.push(cur);rows.push(row);row=[];cur='';}else if(ch==='\r'){}else cur+=ch;}}if(cur!==''||row.length){row.push(cur);rows.push(row);}return rows;}
@@ -800,7 +800,17 @@ async function _anularPoliza(keyId,keyNro){
     if(cand.length>1){ const c2=cand.filter(_nonAnul); if(c2.length===1)cand=c2; }
     if(cand.length===1 && cand[0]['ID']!=null && String(cand[0]['ID'])!==''){ _tid=String(cand[0]['ID']); _tcol='id'; }
   }catch(e){}
-  const r=await bk({action:'moveRow',sheet:'CARTERA COMPLETA',target:'ANULADAS',keyCol:_tcol,keyVal:_tid});
+  let r=await bk({action:'moveRow',sheet:'CARTERA COMPLETA',target:'ANULADAS',keyCol:_tcol,keyVal:_tid},45000);
+  if(!r||r.error==='timeout'||r.error==='sin_conexion'){
+    if(msg)msg.innerHTML='Tarda m\u00e1s de lo normal, verificando en la planilla\u2026';
+    try{ await new Promise(_rs=>setTimeout(_rs,3500));
+      const _chk=await gvizCsv(1516937969);
+      const _dg2=x=>String(x==null?'':x).replace(/\D/g,''); const _u2=x=>String(x==null?'':x).trim().toUpperCase();
+      const _oNro=_u2(keyNro);
+      const still=_chk.some(function(r0){ if(_tcol==='id'&&_tid) return String(r0['ID']==null?'':r0['ID'])===String(_tid); return _oNro&&_u2(r0['POLIZA'])===_oNro&&!/ANUL|BAJA/.test(_u2(r0['ESTADO']||'')); });
+      if(!still){ r={ok:true,moved:true}; }
+    }catch(e){}
+  }
   if(r&&r.ok&&r.moved){ const i=POL.findIndex(x=>useId?String(x._id)===String(key):String(x.nro)===String(key)); if(i>=0)POL.splice(i,1); closePol(); render(); }
   else if(r&&!r.ok&&/desconocida/i.test(String(r.error||''))){ if(msg)msg.innerHTML='<span style="color:#ffcf7a">Actualizá el backend (Apps Script) para activar el envío a la hoja <b>ANULADAS</b>, y volvé a intentar.</span>'; }
   else { if(msg)msg.innerHTML='<span style="color:#ff8585">No se pudo anular ('+((r&&r.error)||'sin conexión')+').</span>'; }
