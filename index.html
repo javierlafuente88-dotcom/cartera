@@ -194,7 +194,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
   </div>
 
   <div id="t-vr" class="hidden"><div class="panel"><div class="hh"><h2>💙 Vida y Retiro <span class="muted" id="vrSub" style="font-weight:400"></span></h2><div style="display:flex;gap:8px;align-items:center"><button class="btn sec mini" onclick="if(window.vrAnalisis)vrAnalisis()">📊 Análisis</button><button class="btn sec mini" onclick="if(window.vrAddProspecto)vrAddProspecto()">+ Prospecto</button></div></div><div id="vrChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px"></div><div id="vrBody"></div></div></div>
-  <div id="vrModal" style="display:none;position:fixed;inset:0;background:rgba(5,8,15,.72);z-index:60;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px"><div style="background:#111726;border:1px solid #2a3346;border-radius:14px;max-width:820px;width:100%;padding:18px"><div id="vrFichaBody"></div></div></div>
+  <div id="vrModal" style="display:none;position:fixed;inset:0;background:rgba(5,8,15,.72);z-index:60;align-items:flex-start;justify-content:center;overflow:auto;padding:20px 10px"><div style="max-width:1160px;width:100%"><div id="vrFichaBody"></div></div></div>
 
   <div id="t-ia" class="hidden"><div class="panel"><div class="hh"><h2>🤖 Asistente IA <span class="muted" id="iaSub" style="font-weight:400">· responde con tu cartera en vivo</span></h2></div><div id="iaMsgs" style="display:flex;flex-direction:column;gap:10px;min-height:120px;max-height:52vh;overflow:auto;padding:4px 2px"></div><div id="iaChips" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px"></div><div style="display:flex;gap:8px"><input id="iaInp" placeholder="Preguntá o pedí algo… (ej: ¿qué vence esta semana?)" style="flex:1;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:10px 12px;font:inherit"><button class="btn" id="iaSend" type="button">Enviar</button></div></div></div>
 
@@ -1868,106 +1868,161 @@ window.openVRFicha=function(id){
   var all=vrBuild(); var o=all.find(function(x){return x.id===id;}); if(!o)return; vrCur=id;
   var f=o.ficha||{};
   var modal=document.getElementById('vrModal'); modal.style.display='flex';
-  var nac=f.nacimiento||o.nac||''; var edad=_edad(_dmy2iso(nac)||nac);
+  var nac=f.nacimiento||o.nac||''; var nacIso=_dmy2iso(nac)||nac; var edad=_edad(nacIso);
   var cont=(DATA.vr.contactos||[]).filter(function(x){return x.cli===id;}).sort(function(a,b){return (b.fecha||'')<(a.fecha||'')?-1:1;});
   var notas=(DATA.vr.notas||[]).filter(function(x){return x.cli===id;}).sort(function(a,b){return (b.fecha||'')<(a.fecha||'')?-1:1;});
   var ventas=(DATA.vr.ventas||[]).filter(function(x){return x.cli===id;});
   var arch=(DATA.vr.archivos||[]).filter(function(x){return x.cli===id;});
-  var equipo=(DATA.vr&&DATA.vr.equipo)||[];
-  function opt(v,sel){return '<option'+(String(sel)===String(v)?' selected':'')+'>'+_esc(v)+'</option>';}
-  var html='';
-  html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap"><div><div style="font-size:18px;font-weight:600">'+(o.fijado?'📌 ':'')+_esc(o.cli||'(sin nombre)')+'</div><div class="muted" style="font-size:12px">'+_esc(vrPerfil(o))+(o.doc?' · '+_esc(o.doc):'')+(edad!=null?' · '+edad+' años':'')+'</div></div><button class="btn sec" id="vrClose">Cerrar</button></div>';
-  // acciones rapidas
-  html+='<div class="vr-row" style="display:flex;gap:16px;flex-wrap:wrap;margin:12px 0">';
-  html+='<div><label class="muted" style="font-size:11px;display:block">Estado</label><select id="vrEstado">'+ESTADOS.map(function(e){return opt(e,o.estado);}).join('')+'</select></div>';
-  html+='<div><label class="muted" style="font-size:11px;display:block">Prioridad</label><select id="vrPrio"><option value="">Auto ('+o.prioridad+')</option>'+['Alta','Media','Baja'].map(function(e){return '<option'+(f.prioridad===e?' selected':'')+'>'+e+'</option>';}).join('')+'</select></div>';
-  html+='<div><label class="muted" style="font-size:11px;display:block">Próximo contacto</label><input type="date" id="vrProx" value="'+(_dmy2iso(o.proximo)||o.proximo||'')+'"> <input type="time" id="vrProxH" value="'+_esc(f.proximoHora||'')+'" style="width:95px"></div>';
-  html+='<div><label class="muted" style="font-size:11px;display:block">Responsable</label><select id="vrResp"><option value="">—</option>'+equipo.map(function(m){return opt(m.nombre,f.responsable);}).join('')+'</select></div>';
-  html+='<div style="display:flex;align-items:flex-end;gap:6px"><button class="btn" id="vrSave">Guardar</button><button class="btn sec" id="vrFijar">'+(o.fijado?'Quitar fijado':'Fijar arriba')+'</button><button class="btn sec" id="vrNoInt" style="color:#ff8585;border-color:#5a2b2b">'+(o.noInteresa?'Reactivar':'No le interesa')+'</button></div>';
-  html+='<span id="vrMsg" class="muted" style="font-size:12px;align-self:flex-end"></span></div>';
-  // datos + hijos
-  html+='<div class="panel" style="margin-top:4px"><h2>Datos</h2><div class="form">';
-  html+='<div><label>DNI</label><input data-vf="dni" value="'+_esc(f.dni||o.doc||'')+'"></div>';
-  html+='<div><label>Nacimiento</label><input type="date" data-vf="nacimiento" value="'+(_dmy2iso(nac)||'')+'"></div>';
-  html+='<div><label>Teléfono</label><input data-vf="telefono" value="'+_esc(f.telefono||o.tel||'')+'"></div>';
-  html+='<div><label>Mail</label><input data-vf="mail" value="'+_esc(f.mail||o.mail||'')+'"></div>';
-  html+='<div><label>Hijos</label><select data-vf="hijos"><option value="">—</option>'+opt('Si',f.hijos)+opt('No',f.hijos)+'</select></div>';
-  html+='<div><label>Cantidad hijos</label><input data-vf="hijosCant" inputmode="numeric" value="'+_esc(f.hijosCant||'')+'"></div>';
-  html+='<div style="grid-column:1/-1"><label>Edades hijos</label><input data-vf="hijosEdades" value="'+_esc(f.hijosEdades||'')+'"></div>';
-  html+='<div style="grid-column:1/-1"><label>Qué ofrecer / propuesta</label><input data-vf="propuesta" value="'+_esc(f.propuesta||'')+'"></div>';
-  html+='</div><div style="margin-top:8px"><button class="btn sec" id="vrSaveDatos">Guardar datos</button> <span id="vrMsg2" class="muted" style="font-size:12px"></span></div></div>';
-  // polizas
-  if(o.polizas.length){ html+='<div class="panel" style="margin-top:12px"><h2>Pólizas en cartera</h2><div class="scroll"><table><thead><tr><th>Ramo</th><th>Compañía</th><th>Nº</th><th>Vence</th><th>Cuota/m</th></tr></thead><tbody>'+o.polizas.map(function(p){return '<tr><td>'+_esc(p.ramo)+'</td><td>'+_esc(p.cia)+'</td><td>'+_esc(p.poliza||'—')+'</td><td>'+(p.hasta?_iso2dmy(p.hasta):'—')+'</td><td>'+_fmt(p.cuota)+'</td></tr>';}).join('')+'</tbody></table></div></div>'; }
-  // contactos
-  html+='<div class="panel" style="margin-top:12px"><h2>Registro de contactos</h2><div id="vrContList">'+(cont.length?cont.map(function(c){return '<div class="seg-note" style="background:#1d2536;border:1px solid #2a3346;border-radius:8px;padding:8px 10px;margin-bottom:6px"><div style="font-size:12px;color:#8a97ad">'+_iso2dmy(c.fecha)+' · '+_esc(c.medio||'')+(c.por?' · '+_esc(c.por):'')+' <a href="#" data-del="'+_esc(c.id)+'" data-sheet="VR_CONTACTOS" data-k="contactos" style="color:#ff8585;float:right">borrar</a></div><div>'+_esc(c.resultado||'')+'</div></div>';}).join(''):'<div class="muted" style="font-size:13px">Sin contactos.</div>')+'</div>';
-  html+='<div class="form" style="margin-top:6px"><div><label>Medio</label><select id="vrCMedio">'+MEDIOS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div><div><label>Por</label><input id="vrCPor" value=""></div><div style="grid-column:1/-1"><label>Resultado</label><input id="vrCRes" value=""></div></div><button class="btn sec" id="vrAddCont">+ Registrar contacto</button></div>';
-  // notas
-  html+='<div class="panel" style="margin-top:12px"><h2>Notas</h2><div id="vrNotList">'+(notas.length?notas.map(function(n){return '<div class="seg-note" style="background:#1d2536;border:1px solid #2a3346;border-radius:8px;padding:8px 10px;margin-bottom:6px"><div style="font-size:12px;color:#8a97ad">'+_iso2dmy(n.fecha)+' <a href="#" data-del="'+_esc(n.id)+'" data-sheet="VR_NOTAS" data-k="notas" style="color:#ff8585;float:right">borrar</a></div><div style="white-space:pre-wrap">'+_esc(n.texto||'')+'</div></div>';}).join(''):'<div class="muted" style="font-size:13px">Sin notas.</div>')+'</div><textarea id="vrNotTxt" rows="2" placeholder="Nueva nota…" style="width:100%;margin-top:6px;background:#0f1726;border:1px solid #2a3346;color:inherit;border-radius:8px;padding:8px"></textarea><button class="btn sec" id="vrAddNota">+ Agregar nota</button></div>';
-  // ventas
-  html+='<div class="panel" style="margin-top:12px"><h2>Ventas cerradas</h2><div id="vrVtaList">'+(ventas.length?ventas.map(function(v){return '<div class="seg-note" style="background:#13241a;border:1px solid #2a4a36;border-radius:8px;padding:8px 10px;margin-bottom:6px"><div>'+_esc(v.producto||'')+' · '+_esc(v.compania||'')+' · '+_fmt(_num(v.prima))+'/m '+(v.poliza?'· Nº '+_esc(v.poliza):'')+' <a href="#" data-del="'+_esc(v.id)+'" data-sheet="VR_VENTAS" data-k="ventas" style="color:#ff8585;float:right">borrar</a></div></div>';}).join(''):'<div class="muted" style="font-size:13px">Sin ventas.</div>')+'</div>';
-  html+='<div class="form" style="margin-top:6px"><div><label>Producto</label><select id="vrVProd">'+PRODUCTOS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div><div><label>Compañía</label><input id="vrVCia" value=""></div><div><label>Prima mensual</label><input id="vrVPrima" inputmode="decimal" value=""></div><div><label>Nº Póliza</label><input id="vrVPol" value=""></div></div><button class="btn gr" id="vrAddVta">+ Registrar venta</button></div>';
-  // archivos (link)
-  html+='<div class="panel" style="margin-top:12px"><h2>Archivos (link a Drive)</h2><div id="vrArcList">'+(arch.length?arch.map(function(a){return '<div class="seg-note" style="background:#1d2536;border:1px solid #2a3346;border-radius:8px;padding:8px 10px;margin-bottom:6px"><a href="'+_esc(a.link)+'" target="_blank" rel="noopener" style="color:#8fb4ff">'+_esc(a.nombre||a.link)+'</a> <a href="#" data-del="'+_esc(a.id)+'" data-sheet="VR_ARCHIVOS" data-k="archivos" style="color:#ff8585;float:right">borrar</a></div>';}).join(''):'<div class="muted" style="font-size:13px">Sin archivos.</div>')+'</div><div class="form" style="margin-top:6px"><div><label>Nombre</label><input id="vrArcNom" value=""></div><div><label>Link (Drive)</label><input id="vrArcLink" placeholder="https://drive.google.com/…" value=""></div></div><button class="btn sec" id="vrAddArc">+ Agregar link</button></div>';
-
-  document.getElementById('vrFichaBody').innerHTML=html;
+  var autoPrio=vrPrioAuto(o,f);
+  var ofr=(f.ofrecido||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  function seg(group,opts,cur){ return '<div class="seg" data-seg="'+group+'">'+opts.map(function(op){var on=String(cur||'')===String(op[0]);return '<button type="button" class="segb'+(on?' on':'')+'" data-val="'+_esc(op[0])+'">'+_esc(op[1])+'</button>';}).join('')+'</div>'; }
+  function optsSel(arr,cur){return arr.map(function(v){return '<option'+(String(v)===String(cur)?' selected':'')+'>'+_esc(v)+'</option>';}).join('');}
+  var S='<style>'+
+   '.vrf{font:13px/1.45 system-ui,Segoe UI,Arial;color:#1f2a37;background:#fff;border-radius:14px;overflow:hidden}'+
+   '.vrf .top{display:flex;align-items:flex-start;gap:12px;padding:18px 22px;border-bottom:1px solid #e7ebf1}'+
+   '.vrf .perf{font-size:11px;letter-spacing:.8px;color:#6b7684;text-transform:uppercase;font-weight:700}'+
+   '.vrf .nm{font-size:22px;font-weight:700;color:#0f1b2d;margin-top:2px}'+
+   '.vrf .dni{color:#6b7684;font-size:12.5px;margin-top:2px}'+
+   '.vrf .top .acts{margin-left:auto;display:flex;gap:8px;align-items:center}'+
+   '.vrf .b{border:1px solid #cfd6e0;background:#fff;color:#2a3a4f;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer;font-size:12.5px}'+
+   '.vrf .b.teal{border-color:#0f766e;color:#0f766e}.vrf .b.red{border-color:#e2b1aa;color:#c0392b}.vrf .b.x{border:0;font-size:18px;color:#8a94a4;padding:4px 9px}'+
+   '.vrf .b.solid{background:#0f766e;border-color:#0f766e;color:#fff}'+
+   '.vrf .cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}'+
+   '.vrf .col{padding:16px 20px;border-right:1px solid #eef1f5}.vrf .col:last-child{border-right:0}'+
+   '.vrf .sec{font-size:11px;letter-spacing:.7px;color:#7a8696;text-transform:uppercase;font-weight:700;margin:16px 0 8px}.vrf .sec:first-child{margin-top:0}'+
+   '.vrf label.l{display:block;font-size:11px;color:#6b7684;margin:0 0 3px}'+
+   '.vrf input,.vrf select,.vrf textarea{width:100%;border:1px solid #d5dce6;border-radius:8px;padding:8px 10px;font:inherit;color:#1f2a37;background:#fff}'+
+   '.vrf textarea{resize:vertical;min-height:58px}'+
+   '.vrf .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}'+
+   '.vrf .seg{display:flex;flex-wrap:wrap;gap:6px}'+
+   '.vrf .segb{border:1px solid #cfd6e0;background:#fff;color:#44525f;border-radius:8px;padding:7px 11px;font:inherit;font-size:12.5px;cursor:pointer}'+
+   '.vrf .segb.on{background:#0f766e;border-color:#0f766e;color:#fff}'+
+   '.vrf .hint{font-size:11px;color:#8a94a4;margin-top:5px}'+
+   '.vrf table{width:100%;border-collapse:collapse;margin-top:4px}.vrf th,.vrf td{text-align:left;padding:6px 6px;border-bottom:1px solid #eef1f5;font-size:12px}.vrf th{color:#7a8696;font-weight:600;font-size:10.5px;text-transform:uppercase}'+
+   '.vrf .box{background:#0f766e;color:#fff;border:0;border-radius:8px;padding:9px 12px;font:inherit;cursor:pointer;width:100%;font-weight:600;margin-top:8px}'+
+   '.vrf .cal{background:#e7f3f1;border:1px solid #bfe0da;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:12px;color:#2a5a54}'+
+   '.vrf .item{background:#f7f9fb;border:1px solid #e7ebf1;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12.5px}'+
+   '.vrf .item .meta{color:#8a94a4;font-size:11px;margin-bottom:2px;display:flex;justify-content:space-between}'+
+   '.vrf .item.v{background:#eafaf0;border-color:#c7ead4}'+
+   '.vrf .chk{display:inline-flex;align-items:center;gap:5px;margin-right:12px;font-size:12.5px}.vrf .chk input{width:auto}'+
+   '.vrf .empty{color:#9aa4b2;font-size:12px}.vrf .st{font-size:12px;margin-left:8px}'+
+   '@media(max-width:900px){.vrf .cols{grid-template-columns:1fr}.vrf .col{border-right:0;border-bottom:1px solid #eef1f5}}'+
+   '</style>';
+  var H=S+'<div class="vrf">';
+  // header
+  H+='<div class="top"><div><div class="perf">'+_esc(vrPerfil(o))+'</div><div class="nm">'+_esc(o.cli||'(sin nombre)')+'</div><div class="dni">'+(o.doc?'DNI '+_esc(o.doc):'Sin documento')+(edad!=null?' · '+edad+' años':'')+'</div></div>'+
+    '<div class="acts"><button class="b red" id="vrNoInt">'+(o.noInteresa?'Reactivar':'No le interesa')+'</button><button class="b teal" id="vrFijar">'+(o.fijado?'★ Quitar fijado':'☆ Fijar arriba')+'</button><span class="st" id="vrStatus"></span><button class="b x" id="vrClose">✕</button></div></div>';
+  H+='<div class="cols">';
+  // ---- Columna 1 ----
+  H+='<div class="col">';
+  H+='<div class="sec">Responsable</div>'+seg('resp',[['Martín','Martín'],['Javier','Javier'],['Mary','Mary'],['Todos','Todos'],['','Sin asignar']], f.responsable||'')+'<div class="hint">El evento del calendario invita al responsable, así le aparece en su Google Calendar.</div>';
+  H+='<div class="sec">Prioridad</div>'+seg('prio',[['','Automática ('+autoPrio+')'],['Alta','Alta'],['Media','Media'],['Baja','Baja']], f.prioridad||'');
+  H+='<div class="sec">Datos del cliente</div><div class="row2"><div><label class="l">DNI</label><input data-vf="dni" value="'+_esc(f.dni||o.doc||'')+'"></div><div><label class="l">Fecha de nacimiento</label><input type="date" data-vf="nacimiento" value="'+_esc(nacIso||'')+'"></div></div>';
+  H+='<div class="row2" style="margin-top:8px"><div><label class="l">Teléfono</label><input data-vf="telefono" value="'+_esc(f.telefono||o.tel||'')+'"></div><div><label class="l">Mail</label><input data-vf="mail" value="'+_esc(f.mail||o.mail||'')+'"></div></div>';
+  H+='<div class="hint">Edad: '+(edad!=null?edad+' años':'—')+'</div>';
+  H+='<div class="sec">Hijos</div>'+seg('hijos',[['Si','Tiene hijos'],['No','No tiene'],['','Sin dato']], f.hijos||'')+'<div class="hint">Si tiene hijos, pasa a prioridad alta automáticamente.</div>';
+  H+='<div class="sec">Pólizas en cartera ('+o.polizas.length+')</div>';
+  H+=o.polizas.length?('<table><thead><tr><th>Ramo</th><th>Compañía</th><th>Nº</th><th>Vence</th><th>Cuota/m</th></tr></thead><tbody>'+o.polizas.map(function(p){return '<tr><td>'+_esc(p.ramo)+'</td><td>'+_esc(p.cia)+'</td><td>'+_esc(p.poliza||'—')+'</td><td>'+(p.hasta?_iso2dmy(p.hasta):'—')+'</td><td>'+_fmt(p.cuota)+'</td></tr>';}).join('')+'</tbody></table>'):'<div class="empty">Sin pólizas en cartera.</div>';
+  H+='</div>';
+  // ---- Columna 2 ----
+  H+='<div class="col">';
+  H+='<div class="sec">Gestión</div><div class="row2"><div><label class="l">Estado</label><select id="vrEstado">'+optsSel(ESTADOS,o.estado)+'</select></div><div><label class="l">Volver a contactar</label><input type="date" id="vrProx" value="'+_esc(_dmy2iso(o.proximo)||o.proximo||'')+'"></div></div>';
+  H+='<div style="margin-top:8px"><label class="l">Hora</label><input type="time" id="vrProxH" value="'+_esc(f.proximoHora||'10:00')+'" style="max-width:150px"></div>';
+  H+='<div class="cal"><label class="chk"><input type="checkbox" id="vrAgendar" checked> <b>Agendar en mi Google Calendar</b></label><div style="margin-top:4px">Elegí una fecha y se agenda sola en tu calendario.</div></div>';
+  H+='<div class="sec">Qué se le ofreció</div><div>'+['Vida','Retiro','Accidentes personales','Otro'].map(function(x){return '<label class="chk"><input type="checkbox" data-ofr="'+_esc(x)+'"'+(ofr.indexOf(x)>=0?' checked':'')+'> '+_esc(x)+'</label>';}).join('')+'</div>';
+  H+='<div style="margin-top:8px"><label class="l">Detalle de la propuesta</label><textarea data-vf="propuesta" placeholder="Plan, suma asegurada, cuota cotizada, compañía…">'+_esc(f.propuesta||'')+'</textarea></div>';
+  H+='<div class="sec">Contactos realizados ('+cont.length+')</div>';
+  H+='<div class="row2"><div><label class="l">Fecha</label><input type="date" id="vrCFecha" value="'+_todayIso()+'"></div><div><label class="l">Medio</label><select id="vrCMedio">'+MEDIOS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div></div>';
+  H+='<div style="margin-top:8px"><label class="l">Lo hizo</label><select id="vrCPor"><option value="">—</option>'+['Martín','Javier','Mary'].map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div>';
+  H+='<div style="margin-top:8px"><label class="l">Resultado (opcional)</label><input id="vrCRes" placeholder="No atendió, pidió que lo llame el lunes…"></div>';
+  H+='<button class="box" id="vrAddCont">Registrar contacto</button>';
+  H+=cont.length?('<div style="margin-top:8px">'+cont.map(function(c){return '<div class="item"><div class="meta"><span>'+_iso2dmy(c.fecha)+' · '+_esc(c.medio||'')+(c.por?' · '+_esc(c.por):'')+'</span><a href="#" data-del="'+_esc(c.id)+'" data-sheet="VR_CONTACTOS" data-k="contactos" style="color:#c0392b">borrar</a></div><div>'+_esc(c.resultado||'')+'</div></div>';}).join('')+'</div>'):'<div class="empty" style="margin-top:8px">Todavía no lo contactaste.</div>';
+  H+='</div>';
+  // ---- Columna 3 ----
+  H+='<div class="col">';
+  H+='<div class="sec">Propuestas y archivos (link de Drive/OneDrive)</div>';
+  H+='<div class="row2"><div><label class="l">Nombre</label><input id="vrArcNom" placeholder="Cotización, póliza…"></div><div><label class="l">Link</label><input id="vrArcLink" placeholder="https://…"></div></div><button class="box" id="vrAddArc">Agregar link</button>';
+  H+=arch.length?('<div style="margin-top:8px">'+arch.map(function(a){return '<div class="item"><a href="'+_esc(a.link)+'" target="_blank" rel="noopener" style="color:#0f766e">'+_esc(a.nombre||a.link)+'</a> <a href="#" data-del="'+_esc(a.id)+'" data-sheet="VR_ARCHIVOS" data-k="archivos" style="color:#c0392b;float:right">borrar</a></div>';}).join('')+'</div>'):'<div class="empty" style="margin-top:8px">Sin archivos cargados.</div>';
+  H+='<div class="sec">Anotaciones</div><label class="l">Nueva anotación</label><textarea id="vrNotTxt" placeholder="Qué hablaron, objeciones, cómo prefiere que lo contacten…"></textarea><button class="box" id="vrAddNota">Agregar anotación</button>';
+  H+=notas.length?('<div style="margin-top:8px">'+notas.map(function(n){return '<div class="item"><div class="meta"><span>'+_iso2dmy(n.fecha)+'</span><a href="#" data-del="'+_esc(n.id)+'" data-sheet="VR_NOTAS" data-k="notas" style="color:#c0392b">borrar</a></div><div style="white-space:pre-wrap">'+_esc(n.texto||'')+'</div></div>';}).join('')+'</div>'):'<div class="empty" style="margin-top:8px">Sin anotaciones todavía.</div>';
+  H+='<div class="sec">Operaciones de venta ('+ventas.length+')</div>';
+  H+='<div class="row2"><div><label class="l">Producto</label><select id="vrVProd">'+PRODUCTOS.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select></div><div><label class="l">Compañía</label><input id="vrVCia" placeholder="San Cristóbal…"></div></div>';
+  H+='<div class="row2" style="margin-top:8px"><div><label class="l">Prima mensual ($)</label><input id="vrVPrima" inputmode="decimal"></div><div><label class="l">Nº de póliza</label><input id="vrVPol"></div></div>';
+  H+='<button class="box" id="vrAddVta">Registrar venta</button>';
+  H+=ventas.length?('<div style="margin-top:8px">'+ventas.map(function(v){return '<div class="item v"><div>'+_esc(v.producto||'')+' · '+_esc(v.compania||'')+' · '+_fmt(_num(v.prima))+'/m '+(v.poliza?'· Nº '+_esc(v.poliza):'')+' <a href="#" data-del="'+_esc(v.id)+'" data-sheet="VR_VENTAS" data-k="ventas" style="color:#c0392b;float:right">borrar</a></div></div>';}).join('')+'</div>'):'<div class="empty" style="margin-top:8px">Sin ventas registradas.</div>';
+  H+='</div>';
+  H+='</div></div>';
+  document.getElementById('vrFichaBody').innerHTML=H;
   _wireVRFicha(o);
 };
-function _msg(idv,t,col){var e=document.getElementById(idv); if(e){e.textContent=t; e.style.color=col||'#8a97ad';}}
+function _msg(idv,t,col){var e=document.getElementById(idv); if(e){e.textContent=t; e.style.color=col||'#7a8696';}}
 function _wireVRFicha(o){
   var id=o.id;
-  document.getElementById('vrClose').onclick=function(){document.getElementById('vrModal').style.display='none';};
-  document.getElementById('vrSave').onclick=async function(){
-    _msg('vrMsg','Guardando…');
-    var proxIso=document.getElementById('vrProx').value, hora=document.getElementById('vrProxH').value;
-    var fields={Estado:document.getElementById('vrEstado').value,Prioridad:document.getElementById('vrPrio').value,Proximo:_iso2dmy(proxIso),'Proximo Hora':hora,Responsable:document.getElementById('vrResp').value,Actualizado:_todayDmy()};
+  var ficha=document.getElementById('vrFichaBody');
+  function val(sel){var e=ficha.querySelector(sel);return e?e.value:'';}
+  function segval(g){var b=ficha.querySelector('.seg[data-seg="'+g+'"] .segb.on');return b?b.getAttribute('data-val'):'';}
+  function ofrSel(){return [].slice.call(ficha.querySelectorAll('[data-ofr]:checked')).map(function(c){return c.getAttribute('data-ofr');}).join(', ');}
+  async function saveScalars(withCal){
+    _msg('vrStatus','Guardando…');
+    var fields={Estado:val('#vrEstado'),Prioridad:segval('prio'),Responsable:segval('resp'),Hijos:segval('hijos'),
+      Proximo:_iso2dmy(val('#vrProx')),'Proximo Hora':val('#vrProxH'),
+      Telefono:val('[data-vf="telefono"]'),Mail:val('[data-vf="mail"]'),Nacimiento:_iso2dmy(val('[data-vf="nacimiento"]')),
+      'Cuit o Dni':(val('[data-vf="dni"]')||o.doc||''),Propuesta:val('[data-vf="propuesta"]'),Ofrecido:ofrSel(),
+      Cliente:o.cli||'',Actualizado:_todayDmy()};
     var r=await vrUpsertFicha(id,fields);
-    if(!r||!r.ok){_msg('vrMsg','No se pudo guardar','#ff8585');return;}
-    _msg('vrMsg','✓ Guardado','#37c66b'); renderVR();
-    var evId=(DATA.vr.fichas[id]||{}).calEventId||'';
-    if(proxIso){
-      _msg('vrMsg','✓ Guardado · agendando…','#37c66b');
-      var cr=await bk({action:'calEvent',date:proxIso,hora:hora||'',title:'Contacto V/R: '+(o.cli||''),desc:'Seguimiento vida y retiro — '+(o.cli||''),eventId:evId});
-      if(cr&&cr.ok&&cr.eventId){ await vrUpsertFicha(id,{'Cal Event Id':cr.eventId}); _msg('vrMsg','✓ Guardado y agendado en tu calendario','#37c66b'); }
-      else if(cr&&/desconocida/i.test(cr.error||'')){ _msg('vrMsg','✓ Guardado (el backend aún no tiene calendario)','#ffcf7a'); }
-      else { _msg('vrMsg','✓ Guardado (no se pudo agendar: ¿autorizaste el calendario?)','#ffcf7a'); }
-    } else if(evId){
-      await bk({action:'calEvent',del:'1',eventId:evId}); await vrUpsertFicha(id,{'Cal Event Id':''});
+    if(!r||!r.ok){_msg('vrStatus','Error al guardar','#c0392b');return;}
+    renderVR();
+    if(withCal){
+      var proxIso=val('#vrProx'); var hora=val('#vrProxH'); var ag=ficha.querySelector('#vrAgendar'); var agendar=ag?ag.checked:true;
+      var evId=(DATA.vr.fichas[id]||{}).calEventId||'';
+      if(proxIso&&agendar){
+        var cr=await bk({action:'calEvent',date:proxIso,hora:hora||'',title:'Contacto V/R: '+(o.cli||''),desc:'Seguimiento vida y retiro — '+(o.cli||''),eventId:evId});
+        if(cr&&cr.ok&&cr.eventId){ await vrUpsertFicha(id,{'Cal Event Id':cr.eventId}); _msg('vrStatus','✓ Guardado · agendado','#0f766e'); return; }
+        if(cr&&/desconocida/i.test(cr.error||'')){ _msg('vrStatus','✓ Guardado (falta backend calendario)','#b4790b'); return; }
+        _msg('vrStatus','✓ Guardado (no se pudo agendar)','#b4790b'); return;
+      } else if(evId){ await bk({action:'calEvent',del:'1',eventId:evId}); await vrUpsertFicha(id,{'Cal Event Id':''}); }
     }
-  };
-  document.getElementById('vrSaveDatos').onclick=async function(){
-    _msg('vrMsg2','Guardando…');
-    var g=function(k){var e=document.querySelector('#vrFichaBody [data-vf="'+k+'"]'); return e?e.value:'';};
-    var fields={Telefono:g('telefono'),Mail:g('mail'),Nacimiento:_iso2dmy(g('nacimiento')),Hijos:g('hijos'),'Hijos Cant':g('hijosCant'),'Hijos Edades':g('hijosEdades'),Propuesta:g('propuesta'),Actualizado:_todayDmy()};
-    fields['Cuit o Dni']=o.doc||''; fields.Cliente=o.cli||'';
-    var r=await vrUpsertFicha(id,fields);
-    if(r&&r.ok){_msg('vrMsg2','✓ Guardado','#37c66b'); renderVR();} else _msg('vrMsg2','No se pudo guardar','#ff8585');
-  };
-  document.getElementById('vrFijar').onclick=async function(){ await vrUpsertFicha(id,{Fijado:o.fijado?'':'Si',Cliente:o.cli||'','Cuit o Dni':o.doc||''}); renderVR(); openVRFicha(id); };
-  document.getElementById('vrNoInt').onclick=async function(){ await vrUpsertFicha(id,{'No Interesa':o.noInteresa?'':'Si',Estado:o.noInteresa?'Sin contactar':'No interesado',Cliente:o.cli||''}); renderVR(); openVRFicha(id); };
-  document.getElementById('vrAddCont').onclick=async function(){
-    var res=document.getElementById('vrCRes').value.trim(); var medio=document.getElementById('vrCMedio').value; var por=document.getElementById('vrCPor').value.trim();
-    if(!res&&!por){return;}
-    var row={ID:'C'+Date.now(),'Cliente ID':id,Fecha:_todayDmy(),Medio:medio,Por:por,Resultado:res};
+    _msg('vrStatus','✓ Guardado','#0f766e');
+  }
+  // segmentos
+  [].forEach.call(ficha.querySelectorAll('.seg'),function(g){ g.addEventListener('click',function(e){var b=e.target.closest('.segb'); if(!b)return; [].forEach.call(g.querySelectorAll('.segb'),function(x){x.classList.remove('on');}); b.classList.add('on'); saveScalars(false);}); });
+  // selects / dates (auto-guardado)
+  ['#vrEstado','[data-ofr]'].forEach(function(s){[].forEach.call(ficha.querySelectorAll(s),function(e){e.addEventListener('change',function(){saveScalars(false);});});});
+  ['[data-vf="telefono"]','[data-vf="mail"]','[data-vf="nacimiento"]','[data-vf="dni"]','[data-vf="propuesta"]'].forEach(function(s){var e=ficha.querySelector(s); if(e)e.addEventListener('change',function(){saveScalars(false);});});
+  ['#vrProx','#vrProxH','#vrAgendar'].forEach(function(s){var e=ficha.querySelector(s); if(e)e.addEventListener('change',function(){saveScalars(true);});});
+  // header
+  ficha.querySelector('#vrClose').onclick=function(){document.getElementById('vrModal').style.display='none';};
+  ficha.querySelector('#vrFijar').onclick=async function(){ await vrUpsertFicha(id,{Fijado:o.fijado?'':'Si',Cliente:o.cli||'','Cuit o Dni':o.doc||''}); renderVR(); openVRFicha(id); };
+  ficha.querySelector('#vrNoInt').onclick=async function(){ await vrUpsertFicha(id,{'No Interesa':o.noInteresa?'':'Si',Estado:o.noInteresa?'Sin contactar':'No interesado',Cliente:o.cli||''}); renderVR(); openVRFicha(id); };
+  // contacto
+  ficha.querySelector('#vrAddCont').onclick=async function(){
+    var res=val('#vrCRes').trim(); var medio=val('#vrCMedio'); var por=val('#vrCPor').trim(); var fe=val('#vrCFecha');
+    if(!res&&!por){_msg('vrStatus','Completá el contacto','#b4790b');return;}
+    var row={ID:'C'+Date.now(),'Cliente ID':id,Fecha:(_iso2dmy(fe)||_todayDmy()),Medio:medio,Por:por,Resultado:res};
     var r=await vrAddChild('VR_CONTACTOS',row,'contactos'); if(r&&r.ok)openVRFicha(id);
   };
-  document.getElementById('vrAddNota').onclick=async function(){
-    var t=document.getElementById('vrNotTxt').value.trim(); if(!t)return;
+  // nota
+  ficha.querySelector('#vrAddNota').onclick=async function(){
+    var t=val('#vrNotTxt').trim(); if(!t)return;
     var row={ID:'N'+Date.now(),'Cliente ID':id,Fecha:_todayDmy(),Texto:t};
     var r=await vrAddChild('VR_NOTAS',row,'notas'); if(r&&r.ok)openVRFicha(id);
   };
-  document.getElementById('vrAddVta').onclick=async function(){
-    var prod=document.getElementById('vrVProd').value; var cia=document.getElementById('vrVCia').value.trim(); var prima=document.getElementById('vrVPrima').value.trim(); var pol=document.getElementById('vrVPol').value.trim();
+  // venta
+  ficha.querySelector('#vrAddVta').onclick=async function(){
+    var prod=val('#vrVProd'); var cia=val('#vrVCia').trim(); var prima=val('#vrVPrima').trim(); var pol=val('#vrVPol').trim();
+    if(!cia&&!prima&&!pol){_msg('vrStatus','Completá la venta','#b4790b');return;}
     var row={ID:'V'+Date.now(),'Cliente ID':id,Fecha:_todayDmy(),Producto:prod,Compania:cia,Prima:prima,Poliza:pol};
     var r=await vrAddChild('VR_VENTAS',row,'ventas');
     if(r&&r.ok){ await vrUpsertFicha(id,{Estado:'Vendido',Cliente:o.cli||''}); openVRFicha(id); renderVR(); }
   };
-  document.getElementById('vrAddArc').onclick=async function(){
-    var nom=document.getElementById('vrArcNom').value.trim(); var link=document.getElementById('vrArcLink').value.trim();
-    if(!link){return;}
+  // archivo link
+  ficha.querySelector('#vrAddArc').onclick=async function(){
+    var nom=val('#vrArcNom').trim(); var link=val('#vrArcLink').trim();
+    if(!link){_msg('vrStatus','Pegá el link','#b4790b');return;}
     var row={ID:'A'+Date.now(),'Cliente ID':id,Nombre:nom||link,Link:link,Fecha:_todayDmy()};
     var r=await vrAddChild('VR_ARCHIVOS',row,'archivos'); if(r&&r.ok)openVRFicha(id);
   };
-  [].forEach.call(document.querySelectorAll('#vrFichaBody [data-del]'),function(a){a.onclick=async function(e){e.preventDefault(); if(!confirm('¿Borrar?'))return; await vrDelChild(a.getAttribute('data-sheet'),a.getAttribute('data-del'),a.getAttribute('data-k')); openVRFicha(id);};});
+  [].forEach.call(ficha.querySelectorAll('[data-del]'),function(a){a.onclick=async function(e){e.preventDefault(); if(!confirm('¿Borrar?'))return; await vrDelChild(a.getAttribute('data-sheet'),a.getAttribute('data-del'),a.getAttribute('data-k')); openVRFicha(id);};});
 }
 
 /* ---------- prospecto ---------- */
