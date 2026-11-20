@@ -1968,6 +1968,7 @@ window.renderVR=function(){
   body.innerHTML='<div class="scroll"><table><thead><tr><th>Cliente</th><th>Perfil</th><th>Prioridad</th><th>Estado</th><th>Próx. contacto</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   [].forEach.call(body.querySelectorAll('tr[data-vr]'),function(tr){tr.onclick=function(){openVRFicha(tr.getAttribute('data-vr'));};});
 };
+function _fmtHora(v){ v=String(v||''); var m=/Date\(\d+,\d+,\d+,(\d+),(\d+)/.exec(v); if(m)return (m[1].length<2?'0':'')+m[1]+':'+(m[2].length<2?'0':'')+m[2]; m=/^(\d{1,2}):(\d{2})/.exec(v); if(m)return (m[1].length<2?'0':'')+m[1]+':'+m[2]; return ''; }
 function _vrMatch(o,f){
   if(f==='todos')return true;
   if(f==='nego')return !!o.proximo;
@@ -2039,12 +2040,12 @@ window.openVRFicha=function(id){
   H+='</div>';
   // ---- Columna 2 ----
   H+='<div class="col">';
-  var _prxDmy=o.proximo?_iso2dmy(o.proximo):''; var _prxHr=f.proximoHora||''; var _onCal=!!(f.calEventId);
+  var _prxDmy=o.proximo?_iso2dmy(o.proximo):''; var _prxHr=_fmtHora(f.proximoHora); var _onCal=!!(f.calEventId);
   var _agBanner=_prxDmy
     ? '<div class="vr-agd" style="background:#0e2a1e;border:1px solid #1f9d57;color:#8fe6b4;border-radius:8px;padding:9px 11px;margin:4px 0 10px;font-size:12.5px">📅 <b>Ya tenés una reunión agendada</b> para el '+_prxDmy+(_prxHr?(' a las '+_prxHr):'')+'. '+(_onCal?'Está en tu Google Calendar.':'(todavía no quedó en el calendario)')+' <button id="vrCancelProx" type="button" style="margin-left:6px;background:#3a1414;border:1px solid #d0453b;color:#ffbcbc;border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11px">Cancelar</button></div>'
     : '<div class="vr-agd" style="background:#13203a;border:1px solid #2c416e;color:#9fb0cc;border-radius:8px;padding:9px 11px;margin:4px 0 10px;font-size:12.5px">Sin reunión agendada. Elegí una fecha abajo y se agenda sola.</div>';
   H+='<div class="sec">Gestión</div>'+_agBanner+'<div class="row2"><div><label class="l">Estado</label><select id="vrEstado">'+optsSel(ESTADOS,o.estado)+'</select></div><div><label class="l">Volver a contactar</label><input type="date" id="vrProx" value="'+_esc(_dmy2iso(o.proximo)||o.proximo||'')+'"></div></div>';
-  H+='<div style="margin-top:8px"><label class="l">Hora</label><input type="time" id="vrProxH" value="'+_esc(f.proximoHora||'10:00')+'" style="max-width:150px"></div>';
+  H+='<div style="margin-top:8px"><label class="l">Hora</label><input type="time" id="vrProxH" value="'+_esc(_fmtHora(f.proximoHora)||'10:00')+'" style="max-width:150px"></div>';
   H+='<div class="cal"><label class="chk"><input type="checkbox" id="vrAgendar" checked> <b>Agendar en mi Google Calendar</b></label><div style="margin-top:4px">Elegí una fecha y se agenda sola en tu calendario.</div></div>';
   H+='<div class="sec">Qué se le ofreció</div><div>'+['Vida','Retiro','Accidentes personales','Otro'].map(function(x){return '<label class="chk"><input type="checkbox" data-ofr="'+_esc(x)+'"'+(ofr.indexOf(x)>=0?' checked':'')+'> '+_esc(x)+'</label>';}).join('')+'</div>';
   H+='<div style="margin-top:8px"><label class="l">Detalle de la propuesta</label><textarea data-vf="propuesta" placeholder="Plan, suma asegurada, cuota cotizada, compañía…">'+_esc(f.propuesta||'')+'</textarea></div>';
