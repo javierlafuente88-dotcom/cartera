@@ -1267,13 +1267,13 @@ function drawCharts(rows,vig){
   chA=new Chart(document.getElementById('chArtComp'),{type:'bar',data:{labels:topAC.map(c=>c[0]),datasets:[{label:'ART',data:topAC.map(c=>c[1]),backgroundColor:'#e8590c'}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{precision:0}}}}});
 }
 
-document.getElementById('q').addEventListener('input',e=>{F.q=e.target.value;render();});
+document.getElementById('q').addEventListener('input',e=>{F.q=e.target.value;render(); if(window.renderRenov)renderRenov(); if(window.renderVR)renderVR();});
 fc.addEventListener('change',e=>{F.comp=e.target.value;render();});
 fr.addEventListener('change',e=>{F.ramo=e.target.value;render();});
 document.getElementById('festado').addEventListener('change',e=>{F.estado=e.target.value;render();});
 document.getElementById('fvenc').addEventListener('change',e=>{F.venc=e.target.value;render();});
 document.getElementById('fsin').addEventListener('change',e=>{F.sin=e.target.value;render();});
-document.getElementById('reset').addEventListener('click',()=>{F.q='';F.comp='';F.ramo='';F.estado='';F.venc='';document.getElementById('q').value='';fc.value='';fr.value='';document.getElementById('festado').value='';document.getElementById('fvenc').value='';render();});
+document.getElementById('reset').addEventListener('click',()=>{F.q='';F.comp='';F.ramo='';F.estado='';F.venc='';document.getElementById('q').value='';fc.value='';fr.value='';document.getElementById('festado').value='';document.getElementById('fvenc').value='';render(); if(window.renderRenov)renderRenov(); if(window.renderVR)renderVR();});
 var _navT=document.getElementById('navToggle'),_navNav=document.getElementById('tabsNav'); if(_navT&&_navNav)_navT.addEventListener('click',function(){_navNav.classList.toggle('open');});
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tb.classList.add('active');
@@ -1311,12 +1311,14 @@ function renderRenov(){
   var filt=(document.getElementById('renovFilt')||{}).value||'activos';
   var tbl=document.getElementById('trenov'); if(!tbl)return;
   var winDays=win==='all'?null:parseInt(win,10);
+  var q=((F&&F.q)||'').toLowerCase();
   var list=POL.filter(function(p){
     if(!p.ven)return false;
     var d=diasVenc(p);
     var rec=_renovRec(p.nro);
     if(winDays!=null){ if(d==null||d>winDays||d< -45) return false; }
     else { if(rec.estado==='Renovada'||rec.estado==='Perdida') return false; }
+    if(q){ var hay=((clientName(p.idc)||'')+' '+(p.doc||'')+' '+(p.nro||'')+' '+(p.comp||'')+' '+(p.ramo||'')).toLowerCase(); if(hay.indexOf(q)<0)return false; }
     return true;
   }).map(function(p){return {p:p,d:diasVenc(p),rec:_renovRec(p.nro)};});
   function pasaFiltro(x){
@@ -1858,6 +1860,13 @@ function vrBuild(){
     if(r.nac&&!o.nac)o.nac=r.nac;
     o.polizas.push({ramo:'Retiro',cia:r.comp||'',poliza:r.nro||'',desde:r.inicio||'',hasta:'',cuota:Math.round(_num(r.premio))});
   });
+  (DATA.art||[]).forEach(function(a){
+    if(/baja/i.test(a.sec||''))return;
+    var o=get(a.doc,a.cli);
+    if(a.tel&&!o.tel)o.tel=a.tel; if(a.email&&!o.mail)o.mail=a.email;
+    if(a.comp)o.comps[a.comp]=1;
+    o.polizas.push({ramo:(a.sec&&/art/i.test(a.sec)?a.sec:('ART'+(a.sec?(' '+a.sec):''))),cia:a.comp||'',poliza:'',desde:a.iniso||'',hasta:'',cuota:0});
+  });
   var arr=[];
   Object.keys(m).forEach(function(k){arr.push(m[k]);});
   ((DATA.vr&&DATA.vr.prospectos)||[]).forEach(function(pr){
@@ -1940,10 +1949,12 @@ function _estCol(e){return e==='Vendido'?'#37c66b':e==='No interesado'?'#8a97ad'
 window.renderVR=function(){
   var body=document.getElementById('vrBody'); if(!body)return;
   var all=vrBuild();
+  var _vq=((document.getElementById('q')||{}).value||'').toLowerCase();
+  function _qok(o){ return !_vq || (((o.cli||'')+' '+(o.doc||'')).toLowerCase().indexOf(_vq)>=0); }
   var chips=document.getElementById('vrChips');
-  if(chips)chips.innerHTML=VRFILTROS.map(function(f){var on=VRFILT===f[0];var n=all.filter(function(o){return _vrMatch(o,f[0]);}).length;return '<span class="vr-chip" data-f="'+f[0]+'" style="cursor:pointer;background:'+(on?'#3f7cf6':'#13203a')+';border:1px solid '+(on?'#3f7cf6':'#2c416e')+';color:'+(on?'#fff':'#bcd0ff')+';border-radius:999px;padding:6px 11px;font-size:12.5px">'+f[1]+' '+n+'</span>';}).join('');
+  if(chips)chips.innerHTML=VRFILTROS.map(function(f){var on=VRFILT===f[0];var n=all.filter(function(o){return _vrMatch(o,f[0])&&_qok(o);}).length;return '<span class="vr-chip" data-f="'+f[0]+'" style="cursor:pointer;background:'+(on?'#3f7cf6':'#13203a')+';border:1px solid '+(on?'#3f7cf6':'#2c416e')+';color:'+(on?'#fff':'#bcd0ff')+';border-radius:999px;padding:6px 11px;font-size:12.5px">'+f[1]+' '+n+'</span>';}).join('');
   if(chips)[].forEach.call(chips.querySelectorAll('.vr-chip'),function(el){el.onclick=function(){VRFILT=el.getAttribute('data-f');renderVR();};});
-  var list=all.filter(function(o){return _vrMatch(o,VRFILT);});
+  var list=all.filter(function(o){return _vrMatch(o,VRFILT)&&_qok(o);});
   var pr={Alta:0,Media:1,Baja:2};
   list.sort(function(a,b){ if(a.fijado!==b.fijado)return a.fijado?-1:1; var d=(pr[a.prioridad]||9)-(pr[b.prioridad]||9); if(d)return d; return (b.autoCuota+b.retiroPremio+(b.mp?b.mp.cuota:0))-(a.autoCuota+a.retiroPremio+(a.mp?a.mp.cuota:0)); });
   var sub=document.getElementById('vrSub'); if(sub)sub.textContent='· '+list.length+(VRFILT==='todos'?(' cliente'+(list.length!==1?'s':'')):' candidatos');
@@ -2028,7 +2039,11 @@ window.openVRFicha=function(id){
   H+='</div>';
   // ---- Columna 2 ----
   H+='<div class="col">';
-  H+='<div class="sec">Gestión</div><div class="row2"><div><label class="l">Estado</label><select id="vrEstado">'+optsSel(ESTADOS,o.estado)+'</select></div><div><label class="l">Volver a contactar</label><input type="date" id="vrProx" value="'+_esc(_dmy2iso(o.proximo)||o.proximo||'')+'"></div></div>';
+  var _prxDmy=o.proximo?_iso2dmy(o.proximo):''; var _prxHr=f.proximoHora||''; var _onCal=!!(f.calEventId);
+  var _agBanner=_prxDmy
+    ? '<div class="vr-agd" style="background:#0e2a1e;border:1px solid #1f9d57;color:#8fe6b4;border-radius:8px;padding:9px 11px;margin:4px 0 10px;font-size:12.5px">📅 <b>Ya tenés una reunión agendada</b> para el '+_prxDmy+(_prxHr?(' a las '+_prxHr):'')+'. '+(_onCal?'Está en tu Google Calendar.':'(todavía no quedó en el calendario)')+' <button id="vrCancelProx" type="button" style="margin-left:6px;background:#3a1414;border:1px solid #d0453b;color:#ffbcbc;border-radius:6px;padding:2px 9px;cursor:pointer;font-size:11px">Cancelar</button></div>'
+    : '<div class="vr-agd" style="background:#13203a;border:1px solid #2c416e;color:#9fb0cc;border-radius:8px;padding:9px 11px;margin:4px 0 10px;font-size:12.5px">Sin reunión agendada. Elegí una fecha abajo y se agenda sola.</div>';
+  H+='<div class="sec">Gestión</div>'+_agBanner+'<div class="row2"><div><label class="l">Estado</label><select id="vrEstado">'+optsSel(ESTADOS,o.estado)+'</select></div><div><label class="l">Volver a contactar</label><input type="date" id="vrProx" value="'+_esc(_dmy2iso(o.proximo)||o.proximo||'')+'"></div></div>';
   H+='<div style="margin-top:8px"><label class="l">Hora</label><input type="time" id="vrProxH" value="'+_esc(f.proximoHora||'10:00')+'" style="max-width:150px"></div>';
   H+='<div class="cal"><label class="chk"><input type="checkbox" id="vrAgendar" checked> <b>Agendar en mi Google Calendar</b></label><div style="margin-top:4px">Elegí una fecha y se agenda sola en tu calendario.</div></div>';
   H+='<div class="sec">Qué se le ofreció</div><div>'+['Vida','Retiro','Accidentes personales','Otro'].map(function(x){return '<label class="chk"><input type="checkbox" data-ofr="'+_esc(x)+'"'+(ofr.indexOf(x)>=0?' checked':'')+'> '+_esc(x)+'</label>';}).join('')+'</div>';
@@ -2091,7 +2106,8 @@ function _wireVRFicha(o){
   // selects / dates (auto-guardado)
   ['#vrEstado','[data-ofr]'].forEach(function(s){[].forEach.call(ficha.querySelectorAll(s),function(e){e.addEventListener('change',function(){saveScalars(false);});});});
   ['[data-vf="telefono"]','[data-vf="mail"]','[data-vf="nacimiento"]','[data-vf="dni"]','[data-vf="propuesta"]'].forEach(function(s){var e=ficha.querySelector(s); if(e)e.addEventListener('change',function(){saveScalars(false);});});
-  ['#vrProx','#vrProxH','#vrAgendar'].forEach(function(s){var e=ficha.querySelector(s); if(e)e.addEventListener('change',function(){saveScalars(true);});});
+  ['#vrProx','#vrProxH','#vrAgendar'].forEach(function(s){var e=ficha.querySelector(s); if(e)e.addEventListener('change',async function(){await saveScalars(true); if(window.openVRFicha)window.openVRFicha(id);});});
+  var _cx=ficha.querySelector('#vrCancelProx'); if(_cx)_cx.onclick=async function(){ if(!confirm('¿Cancelar la reunión agendada con '+(o.cli||'este cliente')+'? Se quita del calendario.'))return; var pe=ficha.querySelector('#vrProx'); if(pe)pe.value=''; await saveScalars(true); if(window.openVRFicha)window.openVRFicha(id); };
   // header
   ficha.querySelector('#vrClose').onclick=function(){document.getElementById('vrModal').style.display='none';};
   ficha.querySelector('#vrFijar').onclick=async function(){ await vrUpsertFicha(id,{Fijado:o.fijado?'':'Si',Cliente:o.cli||'','Cuit o Dni':o.doc||''}); renderVR(); openVRFicha(id); };
