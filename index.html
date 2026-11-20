@@ -1758,7 +1758,7 @@ function vrBuild(){
     o.polizas.push({ramo:'Retiro',cia:r.comp||'',poliza:r.nro||'',desde:r.inicio||'',hasta:'',cuota:Math.round(_num(r.premio))});
   });
   var arr=[];
-  Object.keys(m).forEach(function(k){var o=m[k]; if(o.mp||o.autoCuota>0||o.retiro)arr.push(o);});
+  Object.keys(m).forEach(function(k){arr.push(m[k]);});
   ((DATA.vr&&DATA.vr.prospectos)||[]).forEach(function(pr){
     arr.push({id:pr.id,cli:pr.nombre,doc:'',mp:null,autoCuota:0,autos:[],comps:{},tel:'',mail:'',retiro:false,retiroPremio:0,nac:'',polizas:[],_prospecto:true,interes:pr.interes||'',origen:pr.origen||''});
   });
@@ -1786,7 +1786,7 @@ function vrPerfil(o){
   if(o.mp) return 'Mala praxis';
   if(o.autoCuota>=UMBRAL_AUTO) return 'Auto';
   if(o.retiro) return 'Retiro sin vida';
-  return 'Otro';
+  return 'Cliente';
 }
 
 /* ---------- persistencia (hojas VR via bk) ---------- */
@@ -1845,11 +1845,12 @@ window.renderVR=function(){
   var list=all.filter(function(o){return _vrMatch(o,VRFILT);});
   var pr={Alta:0,Media:1,Baja:2};
   list.sort(function(a,b){ if(a.fijado!==b.fijado)return a.fijado?-1:1; var d=(pr[a.prioridad]||9)-(pr[b.prioridad]||9); if(d)return d; return (b.autoCuota+b.retiroPremio+(b.mp?b.mp.cuota:0))-(a.autoCuota+a.retiroPremio+(a.mp?a.mp.cuota:0)); });
-  var sub=document.getElementById('vrSub'); if(sub)sub.textContent='· '+list.length+' candidatos';
+  var sub=document.getElementById('vrSub'); if(sub)sub.textContent='· '+list.length+(VRFILT==='todos'?(' cliente'+(list.length!==1?'s':'')):' candidatos');
   if(!list.length){body.innerHTML='<div class="muted" style="padding:10px">No hay candidatos para este filtro.</div>';return;}
   var rows=list.map(function(o){
     var perfil=vrPerfil(o);
     var tags=[]; if(o.mp)tags.push('<span class="tag">Mala praxis '+_fmt(o.mp.cuota)+'/m</span>'); if(o.autoCuota>0)tags.push('<span class="tag">Auto '+_fmt(o.autoCuota)+'/m</span>'); if(o.retiro)tags.push('<span class="tag">Retiro '+_fmt(o.retiroPremio)+'/m</span>'); if(o._prospecto)tags.push('<span class="tag">Prospecto</span>');
+    if(!tags.length&&!o._prospecto&&o.polizas&&o.polizas.length)tags.push('<span class="tag" style="opacity:.75">'+o.polizas.length+' p\u00f3liza'+(o.polizas.length!==1?'s':'')+' en cartera</span>');
     return '<tr data-vr="'+_esc(o.id)+'" style="cursor:pointer"><td>'+(o.fijado?'📌 ':'')+'<b>'+_esc(o.cli||'(sin nombre)')+'</b>'+(o.doc?' <span class="muted" style="font-size:11px">'+_esc(o.doc)+'</span>':'')+'<div style="margin-top:3px">'+tags.join(' ')+'</div></td><td>'+_esc(perfil)+'</td><td>'+_prioBadge(o.prioridad)+'</td><td><span style="color:'+_estCol(o.estado)+'">'+_esc(o.estado)+'</span></td><td>'+(o.proximo?('⏰ '+_iso2dmy(o.proximo)):'<span class="muted">—</span>')+'</td></tr>';
   }).join('');
   body.innerHTML='<div class="scroll"><table><thead><tr><th>Cliente</th><th>Perfil</th><th>Prioridad</th><th>Estado</th><th>Próx. contacto</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
