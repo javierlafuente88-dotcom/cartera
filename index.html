@@ -1611,6 +1611,12 @@ window.PDFIMP=(function(){
 });}</script>
 <script>window.__SYNCFIX={reread:true,appendId:true,moveAnuladas:true,build:"2026-10-01-anuladas"};</script>
 <script>
+(function(){ function op(t){ if(t&&t.tagName==="INPUT"&&(t.type==="date"||t.type==="time"||t.type==="datetime-local")&&typeof t.showPicker==="function"){ try{t.showPicker();}catch(e){} } }
+ document.addEventListener("click",function(e){op(e.target);},true);
+ document.addEventListener("focus",function(e){op(e.target);},true);
+})();
+</script>
+<script>
 /* ===== Comparativas: lector PDF + exportar PDF (Grupo Lafuente) ===== */
 (function(){
 function _n(v){ if(v==null||v==='')return null; var s=String(v).replace(/[$\s]/g,''); if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.'); var n=parseFloat(s); return isNaN(n)?null:n; }
