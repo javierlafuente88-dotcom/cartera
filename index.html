@@ -2288,14 +2288,73 @@ function localQuery(q){
   else if(/(más de|mas de|mayor|arriba|por encima|supera|desde|superior|caros)/.test(ql)) lo=_parseMonto(q);
   var hasAmount=(hi!=null||lo!=null);
   var campo=/(premio|prima|anual)/.test(ql)?'pa':'pm';
+  // --- intención compartida + guard de "traeme el PDF" (eso lo maneja driveFind) ---
+  var _aggSum=/(cu[aá]nto\b|total|suma|sumale|factur|recaud|promedio)/.test(ql);
+  var _aggCount=/(cu[aá]ntos|cu[aá]ntas|cantidad|n[uú]mero de)/.test(ql);
+  var _listing=/(los que|las que|todos|todas|cu[aá]les|lista|listado|dame|pasame|mostr|quien|qui[eé]nes|tra[eé]|arma|mandame)/.test(ql);
+  var _docFetch=/(p[óo]liza|pdf|archivo|documento|comprobante|certificad)/.test(ql) && /(pasa|manda|tra[eé]|env[íi]|descarg|baj|dame)/.test(ql);
+  if(_docFetch && !(hasAmount||_aggSum||_aggCount)) return null;
+  var _nm=function(n){ if(n==null||n===''||isNaN(+n))return 0; return +n; };
+  var _pf=function(v){ var n=parseFloat(String(v==null?'':v).replace(/[^0-9.]/g,'')); return isNaN(n)?0:n; };
+  var _pi=function(v){ var n=parseInt(String(v==null?'':v).replace(/[^0-9]/g,''),10); return isNaN(n)?null:n; };
+  var _COMPGEN={ART:1,RETIRO:1,SEGUROS:1,SEGURO:1,CIA:1,COMPANIA:1,ASEGURADORA:1,VIDA:1,GENERALES:1,ARGENTINA:1};
+  var _compMatch=function(qup, comps){ var pad=' '+qup+' ', best=null; Object.keys(comps).forEach(function(c){ var cn=_upG(c); if(pad.indexOf(' '+cn+' ')>=0){ best=c; return; } var toks=cn.split(' ').filter(function(t){return t.length>=5 && !_COMPGEN[t];}); for(var i=0;i<toks.length;i++){ if(pad.indexOf(' '+toks[i]+' ')>=0) best=c; } }); return best; };
+  // --- ART ---
+  if(/\barts?\b|riesgos del trabajo|aseguradora de riesgo/.test(ql)){
+    var AR=(DATA.art||[]).filter(function(a){return String(a.cli||'').trim()!=='';});
+    var compsA={}; AR.forEach(function(a){if(a.comp)compsA[a.comp]=1;});
+    var compA=_compMatch(_upG(q),compsA);
+    var conDeuda=/(con deuda|deben|adeud|en deuda)/.test(ql);
+    var bajaA=/(baja|dada de baja|de baja)/.test(ql);
+    var capThr=null, capCmp=null; var cm=ql.match(/(\d{1,5})\s*c[aá]pita/); if(!cm) cm=ql.match(/(?:menos de|menor|hasta|m[aá]s de|mayor|arriba de|m[aá]s que)\s*(\d{1,5})/);
+    if(cm){ capThr=parseInt(cm[1],10); capCmp=/(menos|menor|hasta|debajo)/.test(ql)?'le':'ge'; }
+    var engageA=(compA||conDeuda||bajaA||capThr!=null||_aggSum||_aggCount||(_listing&&!_docFetch));
+    if(engageA){
+      var resA=AR.filter(function(a){
+        if(compA && a.comp!==compA) return false;
+        if(bajaA && !(/baja/i.test(a.sec||'')||String(a.bajaC||'').trim())) return false;
+        if(conDeuda && !(_pf(a.deuda)>0)) return false;
+        if(capThr!=null){ var cv=_pi(a.capitas); if(cv==null)return false; if(capCmp==='le'&&!(cv<=capThr))return false; if(capCmp==='ge'&&!(cv>=capThr))return false; }
+        return true;
+      });
+      var condA=['ART']; if(compA)condA.push('en '+compA); if(bajaA)condA.push('de baja'); if(conDeuda)condA.push('con deuda'); if(capThr!=null)condA.push('con '+(capCmp==='le'?'hasta ':'desde ')+capThr+' cápitas');
+      var capTotA=resA.reduce(function(s,a){return s+(_pi(a.capitas)||0);},0), deuTotA=resA.reduce(function(s,a){return s+_pf(a.deuda);},0);
+      var headA='🔎 '+condA.join(' ')+' — <b>'+resA.length+'</b> resultado'+(resA.length!==1?'s':'');
+      if((_aggSum||_aggCount)&&!_listing) return headA+'.<br>Cápitas totales: <b>'+capTotA+'</b> · deuda total: <b>'+_m2(deuTotA)+'</b>.';
+      if(!resA.length) return headA+'. No encontré ninguna que cumpla eso.';
+      var rowsA=resA.slice(0,40).map(function(a){var cv=_pi(a.capitas),dv=_pf(a.deuda); return '• '+_esc(a.cli||'—')+' — '+_esc(a.comp||'')+(cv!=null?(' — '+cv+' cápitas'):'')+(dv>0?(' — deuda '+_m2(dv)):'')+(a.inicio?(' — desde '+_esc(a.inicio)):'');}).join('<br>');
+      return headA+' · '+capTotA+' cápitas en total:<br>'+rowsA+(resA.length>40?('<br>…y '+(resA.length-40)+' más.'):'');
+    }
+  }
+  // --- Retiro / Vida ---
+  if(/\bretiros?\b|\bvida\b|seguro de retiro/.test(ql)){
+    var RE=(DATA.retiro||[]).filter(function(r){return String(r.cli||'').trim()!=='';});
+    var compsR={}; RE.forEach(function(r){if(r.comp)compsR[r.comp]=1;});
+    var compR=_compMatch(_upG(q),compsR);
+    var engageR=(compR||hasAmount||_aggSum||_aggCount||(_listing&&!_docFetch));
+    if(engageR){
+      var resR=RE.filter(function(r){
+        if(compR && r.comp!==compR) return false;
+        if(hasAmount){ var v=_pf(r.premio); if(!v)return false; if(hi!=null&&!(v<=hi))return false; if(lo!=null&&!(v>=lo))return false; }
+        return true;
+      });
+      var condR=['Retiro/Vida']; if(compR)condR.push('en '+compR);
+      if(hi!=null&&lo!=null)condR.push('con premio entre '+_m2(lo)+' y '+_m2(hi)); else if(hi!=null)condR.push('con premio menor a '+_m2(hi)); else if(lo!=null)condR.push('con premio mayor a '+_m2(lo));
+      var premTotR=resR.reduce(function(s,r){return s+_pf(r.premio);},0);
+      var headR='🔎 '+condR.join(' ')+' — <b>'+resR.length+'</b> resultado'+(resR.length!==1?'s':'');
+      if((_aggSum||_aggCount)&&!_listing) return headR+'.<br>Premio total: <b>'+_m2(premTotR)+'</b>'+(resR.length?(' · promedio '+_m2(premTotR/resR.length)):'')+'.';
+      if(!resR.length) return headR+'. No encontré ninguna que cumpla eso.';
+      var rowsR=resR.slice().sort(function(a,b){return _pf(a.premio)-_pf(b.premio);}).slice(0,40).map(function(r){return '• '+_esc(r.cli||'—')+' — '+_esc(r.comp||'')+(r.plan?(' '+_esc(r.plan)):'')+' — premio '+_m2(_pf(r.premio));}).join('<br>');
+      return headR+' · premio total '+_m2(premTotR)+':<br>'+rowsR+(resR.length>40?('<br>…y '+(resR.length-40)+' más.'):'');
+    }
+  }
   // --- ramo ---
   var RM=[['AUTOMOTOR',/\b(auto|autos|automotor|coche|veh[ií]cul|0 ?km)\b/,'auto'],['MOTO',/\bmotos?\b/,'moto'],['FLOTA',/\bflotas?\b/,'flota'],['HOGAR',/\b(hogar|casa|vivienda)\b/,'hogar'],['COMBINAD',/combinad/,'combinado'],['COMERCIO',/comercio/,'comercio'],['MALA PRAXIS',/(mala praxis|praxis)/,'mala praxis'],['CAUCION',/cauci[oó]n/,'caución'],['INCENDIO',/incendio/,'incendio'],['RESP',/(responsabilidad civil|resp civil|\brc\b)/,'resp. civil']];
   var ramoKey=null, ramoLabel='';
   for(var i=0;i<RM.length;i++){ if(RM[i][1].test(ql)){ ramoKey=RM[i][0]; ramoLabel=RM[i][2]; break; } }
   // --- compañía ---
   var comps={}; POL2.forEach(function(p){ if(p.comp)comps[p.comp]=1; });
-  var compHit=null, qn=' '+_upG(q)+' ';
-  Object.keys(comps).forEach(function(c){ var cn=_upG(c); if(cn.length>=3 && qn.indexOf(' '+cn+' ')>=0) compHit=c; });
+  var compHit=_compMatch(_upG(q),comps);
   // --- estado ---
   var est=null; if(/\bvigent|activ/.test(ql))est='vigente'; else if(/vencid/.test(ql))est='vencida';
   // --- vencimiento ---
