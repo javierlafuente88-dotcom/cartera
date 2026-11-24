@@ -2194,6 +2194,16 @@ function iaCtx(msg){
   var P=DATA.polizas||[], CL=DATA.clientes||[], segs=DATA.seguimientos||[];
   var L=[];
   L.push('Hoy es '+_todayIso()+'. Cartera: '+CL.length+' clientes, '+P.length+' polizas.');
+  (function(){ function _m(n){return n?('$'+Math.round(n).toLocaleString('es-AR')):'$0';}
+    var vig=P.filter(function(p){return !p.anulada && p.est==='vigente';});
+    var primaA=vig.reduce(function(s,p){return s+(p.pa||0);},0), cuotaM=vig.reduce(function(s,p){return s+(p.pm||0);},0);
+    L.push('Totales vigentes ('+vig.length+' polizas): prima anual '+_m(primaA)+', cuota mensual '+_m(cuotaM)+'.');
+    var byR={}; vig.forEach(function(p){var r=(p.ramo||'(s/d)');byR[r]=byR[r]||{n:0,c:0};byR[r].n++;byR[r].c+=(p.pm||0);});
+    L.push('Por ramo: '+Object.keys(byR).sort(function(a,b){return byR[b].n-byR[a].n;}).slice(0,12).map(function(r){return r+' x'+byR[r].n+' (cuota '+_m(byR[r].c)+')';}).join('; '));
+    var byC={}; vig.forEach(function(p){var c=(p.comp||'(s/d)');byC[c]=(byC[c]||0)+1;});
+    L.push('Por compañía: '+Object.keys(byC).sort(function(a,b){return byC[b]-byC[a];}).slice(0,12).map(function(c){return c+' x'+byC[c];}).join('; '));
+    L.push('(Para filtros exactos de montos/ramos el dashboard ya los calcula solo; respondé con estos totales o pedí que lo filtren en la solapa correspondiente si no tenés el dato puntual.)');
+  })();
   var venc=P.map(function(p){return {p:p,d:_dias(p.ven)};}).filter(function(x){return x.d!=null&&x.d>=-7&&x.d<=45;}).sort(function(a,b){return a.d-b.d;}).slice(0,15);
   if(venc.length){ L.push('Vencimientos proximos (+-45 dias):'); venc.forEach(function(x){ L.push('- '+(x.p.cli||'')+' | '+(x.p.comp||'')+' | '+(x.p.ramo||'')+' | No '+(x.p.nro||'-')+' | vence '+(x.p.ven||'?')+' | '+(x.d<0?('vencio hace '+(-x.d)+'d'):('en '+x.d+'d'))); }); }
   var sp=segs.filter(function(s){return s.estado!=='hecho';}).slice(0,10);
@@ -2217,7 +2227,7 @@ function iaCtx(msg){
     cs.slice(0,5).forEach(function(s){ L.push('   seguimiento: '+(s.nota||'')+(s.prox?(' (para '+s.prox+')'):'')+' ['+s.estado+']'); });
   });
   var out=L.join('\n');
-  if(out.length>3200) out=out.slice(0,3200)+'\n...(contexto recortado)';
+  if(out.length>5200) out=out.slice(0,5200)+'\n...(contexto recortado)';
   return out;
 }
 
@@ -2256,12 +2266,100 @@ function renderAccionCard(act){
     d.querySelector('[data-iaok]').disabled=true; d.querySelector('[data-iano]').disabled=true;
   };
 }
+function _m2(n){ if(n==null||n===''||isNaN(+n))return '—'; try{return '$'+Math.round(+n).toLocaleString('es-AR');}catch(e){return '$'+Math.round(+n);} }
+function _dmyG(iso){ return iso? String(iso).split('-').reverse().join('/') : '—'; }
+function _upG(s){ return String(s==null?'':s).toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function _parseMonto(seg){ seg=(' '+String(seg||'')+' ').toLowerCase();
+  var m=seg.match(/(\d+(?:[.,]\d+)?)\s*(mill[oó]n(?:es)?|palos?)/); if(m)return Math.round(parseFloat(m[1].replace(',','.'))*1e6);
+  m=seg.match(/(\d+(?:[.,]\d+)?)\s*(mil|lucas?|k)\b/); if(m)return Math.round(parseFloat(m[1].replace(',','.'))*1e3);
+  m=seg.match(/\$?\s*(\d{1,3}(?:[.\s]\d{3})+)/); if(m)return parseInt(m[1].replace(/[.\s]/g,''),10);
+  m=seg.match(/(\d{3,})/); if(m)return parseInt(m[1],10);
+  return null; }
+var _MESES={enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,setiembre:9,octubre:10,noviembre:11,diciembre:12};
+function localQuery(q){
+ try{
+  var ql=' '+String(q||'').toLowerCase()+' ';
+  var POL2=(DATA.polizas||[]).filter(function(p){return !p.anulada;});
+  // --- montos ---
+  var hi=null, lo=null;
+  var bt=q.match(/entre\s+([^]+?)\s+y\s+([^]+)/i);
+  if(bt){ lo=_parseMonto(bt[1]); hi=_parseMonto(bt[2]); if(lo!=null&&hi!=null&&lo>hi){var t=lo;lo=hi;hi=t;} }
+  else if(/(menos|menor|por debajo|debajo|hasta|inferior|no más de|no mas de|baratos|económic|economic)/.test(ql)) hi=_parseMonto(q);
+  else if(/(más de|mas de|mayor|arriba|por encima|supera|desde|superior|caros)/.test(ql)) lo=_parseMonto(q);
+  var hasAmount=(hi!=null||lo!=null);
+  var campo=/(premio|prima|anual)/.test(ql)?'pa':'pm';
+  // --- ramo ---
+  var RM=[['AUTOMOTOR',/\b(auto|autos|automotor|coche|veh[ií]cul|0 ?km)\b/,'auto'],['MOTO',/\bmotos?\b/,'moto'],['FLOTA',/\bflotas?\b/,'flota'],['HOGAR',/\b(hogar|casa|vivienda)\b/,'hogar'],['COMBINAD',/combinad/,'combinado'],['COMERCIO',/comercio/,'comercio'],['MALA PRAXIS',/(mala praxis|praxis)/,'mala praxis'],['CAUCION',/cauci[oó]n/,'caución'],['INCENDIO',/incendio/,'incendio'],['RESP',/(responsabilidad civil|resp civil|\brc\b)/,'resp. civil']];
+  var ramoKey=null, ramoLabel='';
+  for(var i=0;i<RM.length;i++){ if(RM[i][1].test(ql)){ ramoKey=RM[i][0]; ramoLabel=RM[i][2]; break; } }
+  // --- compañía ---
+  var comps={}; POL2.forEach(function(p){ if(p.comp)comps[p.comp]=1; });
+  var compHit=null, qn=' '+_upG(q)+' ';
+  Object.keys(comps).forEach(function(c){ var cn=_upG(c); if(cn.length>=3 && qn.indexOf(' '+cn+' ')>=0) compHit=c; });
+  // --- estado ---
+  var est=null; if(/\bvigent|activ/.test(ql))est='vigente'; else if(/vencid/.test(ql))est='vencida';
+  // --- vencimiento ---
+  var vencMes=null, vencDias=null;
+  if(/(vence|vencen|vencimiento|renov)/.test(ql)){
+    for(var mk in _MESES){ if(ql.indexOf(mk)>=0){ vencMes=_MESES[mk]; break; } }
+    if(/este mes/.test(ql)){ var _n=new Date(); vencMes=_n.getMonth()+1; }
+    else if(/pr[oó]ximo mes|mes que viene/.test(ql)){ var _n2=new Date(); vencMes=((_n2.getMonth()+1)%12)+1; }
+    else if(/esta semana/.test(ql)) vencDias=7;
+    else { var dm=ql.match(/pr[oó]ximos?\s+(\d{1,3})\s*d[ií]as/); if(dm)vencDias=parseInt(dm[1],10); }
+  }
+  var hasVenc=(vencMes!=null||vencDias!=null);
+  // --- intención ---
+  var aggSum=/(cu[aá]nto\b|total|suma|sumale|factur|recaud|promedio)/.test(ql);
+  var aggCount=/(cu[aá]ntos|cu[aá]ntas|cantidad|n[uú]mero de)/.test(ql);
+  var listing=/(los que|las que|todos|todas|cu[aá]les|lista|listado|dame|pasame|mostr|quien|qui[eé]nes|tra[eé]|arma|mandame)/.test(ql);
+  var hasFilter=(hasAmount||ramoKey||compHit||est||hasVenc);
+  if(!hasFilter && !aggSum && !aggCount) return null;
+  if(!hasFilter && !/(cartera|p[oó]lizas|polizas)/.test(ql)) return null;
+  // --- aplicar ---
+  var _rre=ramoKey?new RegExp('\\b'+ramoKey):null;
+  var res=POL2.filter(function(p){
+    if(_rre && !_rre.test(_upG(p.ramo))) return false;
+    if(compHit && p.comp!==compHit) return false;
+    if(est && p.est!==est) return false;
+    if(hasVenc){ if(!p.ven) return false;
+      if(vencMes!=null){ var mm=parseInt(String(p.ven).slice(5,7),10); if(mm!==vencMes) return false; }
+      if(vencDias!=null){ var dd=_dias(p.ven); if(dd==null||dd<0||dd>vencDias) return false; } }
+    if(hasAmount){ var v=(campo==='pa'?p.pa:p.pm); if(v==null) return false; if(hi!=null&&!(v<=hi))return false; if(lo!=null&&!(v>=lo))return false; }
+    return true;
+  });
+  var campoLbl=(campo==='pa'?'premio':'cuota mensual');
+  var cond=[];
+  if(ramoKey)cond.push('de '+ramoLabel);
+  if(compHit)cond.push('en '+compHit);
+  if(est)cond.push(est==='vigente'?'vigentes':'vencidas');
+  if(hi!=null&&lo!=null)cond.push('con '+campoLbl+' entre '+_m2(lo)+' y '+_m2(hi));
+  else if(hi!=null)cond.push('con '+campoLbl+' menor a '+_m2(hi));
+  else if(lo!=null)cond.push('con '+campoLbl+' mayor a '+_m2(lo));
+  if(vencMes!=null){ var MN=['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']; cond.push('que vencen en '+MN[vencMes]); }
+  if(vencDias!=null)cond.push('que vencen en los próximos '+vencDias+' días');
+  var totalCuota=res.reduce(function(s,p){return s+(p.pm||0);},0);
+  var totalPrem=res.reduce(function(s,p){return s+(p.pa||0);},0);
+  var head='🔎 Pólizas '+cond.join(' ')+' — <b>'+res.length+'</b> resultado'+(res.length!==1?'s':'');
+  if((aggSum||aggCount) && !listing){
+    return head+'.<br>Cuota mensual total: <b>'+_m2(totalCuota)+'</b> · prima anual total: <b>'+_m2(totalPrem)+'</b>'+(res.length?(' · promedio cuota '+_m2(totalCuota/res.length)):'')+'.';
+  }
+  if(!res.length) return head+'. No encontré ninguna que cumpla eso.';
+  var sorted=res.slice().sort(function(a,b){ if(hasAmount||aggSum)return (a[campo]||0)-(b[campo]||0); var da=_dias(a.ven),db=_dias(b.ven); return (da==null?9e9:da)-(db==null?9e9:db); });
+  var cap=sorted.slice(0,40);
+  var rows=cap.map(function(p){ var v=(campo==='pa'?p.pa:p.pm); return '• '+_esc(p.cli||'—')+' — '+_esc(p.comp||'')+' '+_esc(p.ramo||'')+(p.nro?(' N° '+_esc(p.nro)):'')+' — '+_m2(v)+(campo==='pa'?'':'/mes')+(p.ven?(' — vence '+_dmyG(p.ven)):''); }).join('<br>');
+  var extra=res.length>40?('<br>…y '+(res.length-40)+' más.'):'';
+  return head+' · total cuota '+_m2(totalCuota)+'/mes:<br>'+rows+extra;
+ }catch(e){ return null; }
+}
 window.iaSend=async function(text){
   var inp=document.getElementById('iaInp');
   var q=(text!==undefined?text:(inp?inp.value:'')).trim(); if(!q)return;
   if(text===undefined&&inp)inp.value='';
   bubble(_esc(q),'u'); HIST.push({role:'u',text:q});
   var wait=bubble('<span class="muted">pensando...</span>','a');
+  // --- consulta de datos sobre la cartera (filtros/montos/vencimientos, exacto y local) ---
+  var _lq=localQuery(q);
+  if(_lq!=null){ wait.innerHTML=_lq; HIST.push({role:'a',text:'[consulta de datos de cartera]'}); return; }
   // --- pedido de una póliza/archivo: buscar en la carpeta de Drive ---
   if(/(p[óo]liza|pdf|archivo|documento|comprobante|certificad|p[óo]lizas)/i.test(q) && /(pasa|pas[áa]|manda|mand[áa]|mand[aá]me|tra[eé]|traeme|env[íi]|enviame|descarg|baj|bajame|dame|quiero|necesito|busca|buscame|mostr|consegu[íi]|ven[íi])/i.test(q)){
     wait.innerHTML='<span class="muted">buscando en la carpeta de Drive…</span>';
