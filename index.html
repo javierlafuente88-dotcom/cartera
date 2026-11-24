@@ -1872,6 +1872,7 @@ function vrBuild(){
     o.fijado=!!(f&&f.fijado);
     o.vendidoVida=!!(f&&(f.ventas||(DATA.vr.ventas||[]).some(function(v){return v.cli===o.id&&/vida/i.test(v.producto||'');})));
     o.prioridad=(f&&f.prioridad)||vrPrioAuto(o,f);
+    if(!o.tel){ var _ex=(window._telExtra&&window._telExtra(o.cli)); if(_ex)o.tel=_ex; }
   });
   return arr;
 }
