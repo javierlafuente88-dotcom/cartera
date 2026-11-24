@@ -2262,6 +2262,26 @@ window.iaSend=async function(text){
   if(text===undefined&&inp)inp.value='';
   bubble(_esc(q),'u'); HIST.push({role:'u',text:q});
   var wait=bubble('<span class="muted">pensando...</span>','a');
+  // --- pedido de una póliza/archivo: buscar en la carpeta de Drive ---
+  if(/(p[óo]liza|pdf|archivo|documento|comprobante|certificad|p[óo]lizas)/i.test(q) && /(pasa|pas[áa]|manda|mand[áa]|mand[aá]me|tra[eé]|traeme|env[íi]|enviame|descarg|baj|bajame|dame|quiero|necesito|busca|buscame|mostr|consegu[íi]|ven[íi])/i.test(q)){
+    wait.innerHTML='<span class="muted">buscando en la carpeta de Drive…</span>';
+    var dr=await bk({action:'driveFind',q:q},25000);
+    if(dr&&dr.ok){
+      if(dr.files&&dr.files.length){
+        var items=dr.files.map(function(f){return '<div style="margin:5px 0"><a href="'+_esc(f.url)+'" target="_blank" rel="noopener" style="color:#7ab8ff;text-decoration:none">📄 '+_esc(f.name)+'</a></div>';}).join('');
+        wait.innerHTML='Encontré '+dr.files.length+' archivo'+(dr.files.length!==1?'s':'')+' en la carpeta. Tocá para abrir y reenviárselo al cliente:<br>'+items+(dr.count>dr.files.length?('<div class="muted" style="margin-top:6px;font-size:11px">Hay '+dr.count+' en total; afiná con el nº de póliza o el apellido.</div>'):'');
+      } else {
+        wait.innerHTML='No encontré ninguna póliza con eso en la carpeta. Probá con el número de póliza o el apellido tal como está escrito en el nombre del archivo.';
+      }
+    } else {
+      var de=(dr&&dr.error)||'sin_conexion';
+      if(/desconocida/i.test(de)) wait.innerHTML='El backend todavía no tiene la función de buscar archivos (hay que redeployar el Apps Script).';
+      else if(/drive|autoriz|authoriz|permiso|scope/i.test(de)) wait.innerHTML='Falta autorizar el acceso a Google Drive en el Apps Script (una sola vez). Detalle: '+_esc(de);
+      else wait.innerHTML='No pude buscar en Drive ('+_esc(de)+').';
+    }
+    HIST.push({role:'a',text:'[búsqueda de archivos en Drive]'});
+    return;
+  }
   var ctx=iaCtx(q);
   var hist=HIST.slice(-7,-1).map(function(h){return (h.role==='u'?'Javier: ':'Asistente: ')+h.text;}).join('\n');
   var r=null;
@@ -2284,15 +2304,15 @@ window.iaSend=async function(text){
   wait.innerHTML=_esc(pr.clean||'(sin respuesta)').replace(/\n/g,'<br>');
   HIST.push({role:'a',text:pr.clean});
 };
-var CHIPS=['¿Qué vence esta semana?','Resumime la cartera','Redactá un WhatsApp de renovación','¿A quién le puedo vender un seguro de auto?'];
+var CHIPS=['¿Qué vence esta semana?','Resumime la cartera','Pasame la póliza de ','Redactá un WhatsApp de renovación'];
 window.iaInit=function(){
   if(window._iaReady)return; window._iaReady=true;
   var ch=document.getElementById('iaChips');
   if(ch){ ch.innerHTML=CHIPS.map(function(c){return '<span class="chip-ia" style="background:#13203a;border:1px solid #2c416e;color:#bcd0ff;border-radius:999px;padding:6px 10px;font-size:12.5px;cursor:pointer">'+_esc(c)+'</span>';}).join('');
-    [].forEach.call(ch.querySelectorAll('.chip-ia'),function(el){ el.onclick=function(){ iaSend(el.textContent); }; }); }
+    [].forEach.call(ch.querySelectorAll('.chip-ia'),function(el){ el.onclick=function(){ var t=el.textContent; if(/\s$/.test(t)){ var ip=document.getElementById('iaInp'); if(ip){ip.value=t; ip.focus();} } else { iaSend(t); } }; }); }
   var sb=document.getElementById('iaSend'); if(sb)sb.onclick=function(){ iaSend(); };
   var ip=document.getElementById('iaInp'); if(ip)ip.addEventListener('keydown',function(e){ if(e.key==='Enter')iaSend(); });
-  bubble('¡Hola Javier! Soy tu asistente de cartera. Puedo responder sobre tus pólizas y vencimientos, redactar mensajes y agendar seguimientos. Preguntá lo que quieras \U0001F447','a');
+  bubble('¡Hola Javier! Soy tu asistente de cartera. Puedo responder sobre tus pólizas y vencimientos, redactar mensajes y <b>pasarte la póliza en PDF</b> desde la carpeta de Drive (ej: <i>"pasame la póliza de García"</i> o <i>"mandame el pdf de la 4206122"</i>). Preguntá lo que quieras \U0001F447','a');
 };
 })();
 </script>
