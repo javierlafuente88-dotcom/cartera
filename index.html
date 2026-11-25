@@ -158,7 +158,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
     <button class="tab" data-t="cross">Venta cruzada</button>
     <button class="tab" data-t="compa">Comparativas</button>
     <button class="tab" data-t="graf">Gráficos</button>
-    <button class="tab" data-t="game">🎮 Juego</button><button class="tab" data-t="falt">⚠ Faltan datos</button>
+    <button class="tab" data-t="game">🎮 Juego</button>
   </div>
 
   <div id="t-renov" class="hidden"><div class="panel">
@@ -258,8 +258,7 @@ tr.clk{cursor:pointer}tr.clk:hover td{background:#212a3e}
   </div></div>
 
   <div id="t-game" class="hidden"><div class="panel"><div id="gameBody"></div></div></div>
-   <div id="t-falt" class="hidden"><div class="panel"><div class="hh"><h2>Pólizas con datos incompletos <span class="muted" id="faltCnt" style="font-weight:400"></span></h2></div><div class="scroll"><table id="tf"><thead></thead><tbody></tbody></table></div></div></div>
-
+   
   <div class="foot">Para actualizar datos cuando cambie tu planilla, pedime "actualizá el dashboard". · Generado con Cowork</div>
 </div>
 
@@ -506,11 +505,7 @@ function render(){
   setHead('tp',['','Cliente','Cód.','Compañía','Ramo','Nº','Inicio','Vence','Días','Estado','Premio','Cuota x mes','Descripción','Envío'],['','','','','','','','','num','','num','num','wrap-c','']);
   body('tp',_tprows,p=>{const _d=diasVenc(p);const[_s,_b]=semaforo(_d);const _diaTxt=_d==null?'—':(_d<0?('venció '+(-_d)+'d'):(_d+'d'));return `<tr class="clk" data-uid="${p._uid}" data-nro="${(p.nro||'').toString().replace(/"/g,'')}"><td><span class="dot ${_s}"></span></td><td>${clientName(p.idc)||'—'}</td><td>${p.codigo||'—'}</td><td>${p.comp}</td><td><span class="tag">${p.ramo}</span></td><td>${p.nro||'—'}</td><td>${dmy(p.ini)}</td><td>${dmy(p.ven)}</td><td class="num"><span class="badge ${_b}">${_diaTxt}</span></td><td>${p.est}</td><td class="num">${fmt(p.pa)}</td><td class="num">${fmt(p.pm)}</td><td class="wrap-c">${p.obs||'<span class="muted">—</span>'}</td><td>${p.enviada==='SI'?('<span class="badge b-g">✓ Enviada'+(p.fenvio?' · '+dmy(p.fenvio):'')+'</span> <a class="env-undo" data-undonro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="font-size:10px;color:#8aa1b8;cursor:pointer;text-decoration:underline">deshacer</a>'):('<button class="btn env-btn" data-envnro="'+(p.nro||'').toString().replace(/"/g,'')+'" style="padding:3px 9px;font-size:11px">Marcar enviada</button>')}</td></tr>`;});
 
-  var _inc=POL.filter(p=>!p.nro||!p.doc||!polTel(p)||!polMail(p));
-   setHead('tf',['Cliente','Compañía','Ramo','Nº Póliza','CUIT/DNI','Teléfono','Mail','Falta'],['','','','','','','','']);
-   document.getElementById('tf').querySelector('tbody').innerHTML=_inc.map(p=>{var _fa=[];if(!p.nro)_fa.push('Nº');if(!p.doc)_fa.push('CUIT/DNI');if(!polTel(p))_fa.push('Tel.');if(!polMail(p))_fa.push('Mail');return `<tr class="clk" data-uid="${p._uid}"><td>${clientName(p.idc)||'—'}</td><td>${p.comp}</td><td><span class="tag">${p.ramo}</span></td><td>${p.nro||'<span style="color:#ff8585">—</span>'}</td><td>${p.doc||'<span style="color:#ff8585">—</span>'}</td><td>${polTel(p)||'<span style="color:#ff8585">—</span>'}</td><td>${polMail(p)||'<span style="color:#ff8585">—</span>'}</td><td><span class="badge b-r">${_fa.join(', ')}</span></td></tr>`;}).join('')||'<tr><td colspan="8" class="muted" style="padding:20px;text-align:center">✓ Sin datos incompletos</td></tr>';
-   var _fc=document.getElementById('faltCnt'); if(_fc)_fc.textContent='· '+_inc.length+' para completar';
-   const ts=filteredSin().map(s=>({...s,dd:diasDesde(s.fecha)})).sort((a,b)=>(b.abierto-a.abierto)||((b.dd||0)-(a.dd||0)));
+  const ts=filteredSin().map(s=>({...s,dd:diasDesde(s.fecha)})).sort((a,b)=>(b.abierto-a.abierto)||((b.dd||0)-(a.dd||0)));
   setHead('ts',['','Asegurado','Compañía','Tipo','Nº Siniestro','Póliza','Patente','Fecha','Días','Estado','Observaciones'],['','','','','','','','','num','','wrap-c']);
   body('ts',ts,s=>{const cls=s.abierto?'b-y':'b-g';const dot=s.abierto?'y':'g';
     return `<tr class="clk" data-sid="${s.id}"><td><span class="dot ${dot}"></span></td><td>${s.cli||'—'}</td><td>${s.comp||'—'}</td><td>${s.tipo||'—'}</td><td>${s.nro||'—'}</td><td>${s.pol||'—'}</td><td>${s.pat||'—'}</td><td>${dmy(s.fecha)}</td><td class="num">${s.dd!=null?s.dd+'d':'—'}</td><td><span class="badge ${cls}">${s.est}</span></td><td class="wrap-c">${s.obs||'<span class="muted">—</span>'}</td></tr>`;});
@@ -1270,7 +1265,7 @@ var _navT=document.getElementById('navToggle'),_navNav=document.getElementById('
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));tb.classList.add('active');
   var _nn=document.getElementById('tabsNav'); if(_nn)_nn.classList.remove('open'); var _nl=document.getElementById('navToggleLbl'); if(_nl)_nl.textContent=tb.textContent.replace(/\s+/g,' ').trim();
-  ['renov','cli','pol','sin','ia','vr','graf','art','ret','cross','compa','game','falt'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render(); if(tb.dataset.t==='ia'&&window.iaInit)iaInit(); if(tb.dataset.t==='vr'&&window.renderVR)renderVR(); if(tb.dataset.t==='renov'&&window.renderRenov)renderRenov();
+  ['renov','cli','pol','sin','ia','vr','graf','art','ret','cross','compa','game'].forEach(t=>document.getElementById('t-'+t).classList.toggle('hidden',t!==tb.dataset.t)); if(tb.dataset.t==='game'&&window.GAME)GAME.render(); if(tb.dataset.t==='ia'&&window.iaInit)iaInit(); if(tb.dataset.t==='vr'&&window.renderVR)renderVR(); if(tb.dataset.t==='renov'&&window.renderRenov)renderRenov();
   if(tb.dataset.t==='cli'){curCli=null;document.getElementById('cli-detail').classList.add('hidden');document.getElementById('cli-list').classList.remove('hidden');}
   render();
 }));
