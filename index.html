@@ -2429,6 +2429,18 @@ function localQuery(q){
   return head+' · total cuota '+_m2(totalCuota)+'/mes:<br>'+rows+extra;
  }catch(e){ return null; }
 }
+async function _sendMail(fid,to,nombre,btn){
+  try{
+    if(!fid){ alert('No tengo el id del archivo. Actualizá el dashboard (Ctrl+Shift+R).'); return; }
+    if(!confirm('¿Enviar la póliza por email a '+nombre+' ('+to+')?')) return;
+    var orig=btn.innerHTML; btn.innerHTML='Enviando…'; btn.disabled=true;
+    if(!BK_OK)await bk({action:'ping'});
+    var r=await bk({action:'sendPoliza',fileId:fid,to:to,nombre:nombre},40000);
+    if(r&&r.ok){ btn.innerHTML='✓ Enviado a '+to; btn.style.background='#1f9d57'; }
+    else { btn.innerHTML=orig; btn.disabled=false; alert('No se pudo enviar ('+((r&&r.error)||'sin conexión')+').'); }
+  }catch(e){ try{btn.disabled=false;}catch(_e){} }
+}
+window._sendMail=_sendMail;
 window.iaSend=async function(text){
   var inp=document.getElementById('iaInp');
   var q=(text!==undefined?text:(inp?inp.value:'')).trim(); if(!q)return;
@@ -2450,7 +2462,7 @@ window.iaSend=async function(text){
           if(_cto){
             var wl=_cto.tel?_waSendLink(_cto.tel,_cto.nombre,f.url):''; var ml=_cto.mail?_mailSendLink(_cto.mail,_cto.nombre,f.url):'';
             if(wl)send+='<a href="'+_esc(wl)+'" target="_blank" rel="noopener" style="display:inline-block;background:#25d366;color:#04310f;text-decoration:none;border-radius:8px;padding:4px 11px;font-size:12.5px;font-weight:700;margin:3px 3px 0 0">📱 WhatsApp</a>';
-            if(ml)send+='<a href="'+_esc(ml)+'" style="display:inline-block;background:#2f5fd0;color:#fff;text-decoration:none;border-radius:8px;padding:4px 11px;font-size:12.5px;font-weight:700;margin:3px 3px 0 0">✉️ Email</a>';
+            if(_cto.mail)send+='<button class="ia-sendmail" data-fid="'+_esc(String(f.id||''))+'" data-to="'+_esc(_cto.mail)+'" data-nombre="'+_esc(_titulo(_cto.nombre))+'" style="display:inline-block;background:#2f5fd0;color:#fff;border:0;border-radius:8px;padding:4px 11px;font-size:12.5px;font-weight:700;cursor:pointer;margin:3px 3px 0 0">✉️ Enviar por email</button>';
             if(!wl&&!ml)send='<span class="muted" style="font-size:11px">(sin tel. ni mail cargado)</span>';
           }
           return '<div style="margin:8px 0;padding-bottom:7px;border-bottom:1px solid #1d2a44"><a href="'+_esc(f.url)+'" target="_blank" rel="noopener" style="color:#7ab8ff;text-decoration:none">📄 '+_esc(f.name)+'</a>'+(send?('<div style="margin-top:4px">Enviar a '+_esc(_titulo(_cto.nombre))+': '+send+'</div>'):'')+'</div>';
@@ -2493,7 +2505,7 @@ window.iaSend=async function(text){
 var CHIPS=['¿Qué vence esta semana?','Resumime la cartera','Pasame la póliza de ','Redactá un WhatsApp de renovación'];
 window.iaInit=function(){
   if(window._iaReady)return; window._iaReady=true;
-  var _im=document.getElementById('iaMsgs'); if(_im&&!_im._lqWired){_im._lqWired=1;_im.addEventListener('click',function(e){var b=e.target.closest('.lq-presu'); if(b){e.preventDefault();window._nuevoPresupuesto(b.getAttribute('data-cli'),b.getAttribute('data-nro'));}});}
+  var _im=document.getElementById('iaMsgs'); if(_im&&!_im._lqWired){_im._lqWired=1;_im.addEventListener('click',function(e){var b=e.target.closest('.lq-presu'); if(b){e.preventDefault();window._nuevoPresupuesto(b.getAttribute('data-cli'),b.getAttribute('data-nro'));return;} var sb=e.target.closest('.ia-sendmail'); if(sb){e.preventDefault();_sendMail(sb.getAttribute('data-fid'),sb.getAttribute('data-to'),sb.getAttribute('data-nombre'),sb);}});}
   var ch=document.getElementById('iaChips');
   if(ch){ ch.innerHTML=CHIPS.map(function(c){return '<span class="chip-ia" style="background:#13203a;border:1px solid #2c416e;color:#bcd0ff;border-radius:999px;padding:6px 10px;font-size:12.5px;cursor:pointer">'+_esc(c)+'</span>';}).join('');
     [].forEach.call(ch.querySelectorAll('.chip-ia'),function(el){ el.onclick=function(){ var t=el.textContent; if(/\s$/.test(t)){ var ip=document.getElementById('iaInp'); if(ip){ip.value=t; ip.focus();} } else { iaSend(t); } }; }); }
