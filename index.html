@@ -562,7 +562,7 @@ function renderDetail(id){
   const _telH=_bc.tel||(artC.find(a=>a.contador)||{}).contador||'';
   const _ct=(DATA.contactos&&(DATA.contactos[id]||(docv&&DATA.contactos['D'+_nd(docv)])||(nombre&&DATA.contactos['N'+_nn(nombre)])))||{};
   const _pick=(o,b)=>(o!=null&&o!=='')?o:(b||'');
-  const c={ape:_pick(ov.ape,nombre),nom:ov.nom||'',doc:_pick(ov.doc,docv),tipo:ov.tipo||'',tel:_pick(ov.tel,_ct.tel||_telH||(window._telExtra&&window._telExtra(nombre))||''),email:_pick(ov.email,_ct.email||_bc.email),dir:_pick(ov.dir,_ct.dir||_bc.dir),loc:_pick(ov.loc,_ct.loc||_bc.loc),nac:_pick(ov.nac,_ct.cumple)};
+  const c={ape:_pick(ov.ape,nombre),nom:ov.nom||'',doc:_pick(ov.doc,docv),tipo:ov.tipo||'',tel:(function(){var cs=[ov.tel,_ct.tel,_bc.tel,(window._telExtra&&window._telExtra(nombre))];for(var _i=0;_i<cs.length;_i++){if(cs[_i]&&String(cs[_i]).replace(/\D/g,'').length>=6)return cs[_i];}return ov.tel||_ct.tel||'';})(),email:_pick(ov.email,_ct.email||_bc.email),dir:_pick(ov.dir,_ct.dir||_bc.dir),loc:_pick(ov.loc,_ct.loc||_bc.loc),nac:_pick(ov.nac,_ct.cumple)};
   const dispName=(c.ape+(c.nom?' '+c.nom:'')).trim();
   const compsd=[...new Set([...pols.map(p=>p.comp),...artC.map(a=>a.comp),...retC.map(r=>r.comp)].filter(Boolean))];
   const pm=pols.filter(p=>p.est==='vigente').reduce((s,p)=>s+(p.pm||0),0);
