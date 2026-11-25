@@ -2277,6 +2277,24 @@ function _telOf(o){ if(o&&o.tel)return o.tel; var C=(DATA&&DATA.contactos)||{}; 
 function _waLink(tel,nombre,ramo,nro){ var ph=String(tel||'').replace(/\D/g,''); if(!ph)return ''; if(ph.indexOf('54')!==0)ph='549'+ph.replace(/^0/,''); var msg='¡Hola '+_titulo(nombre)+'! ¿Cómo andás? Te escribo de Grupo Lafuente 👋 Estuve repasando tu seguro'+(ramo?(' de '+String(ramo).toLowerCase()):'')+' y me gustaría acercarte una cotización nueva, a ver si podemos mejorarte el precio o la cobertura. Si te interesa, te paso un presupuesto sin compromiso. ¡Un saludo grande!'; return 'https://wa.me/'+ph+'?text='+encodeURIComponent(msg); }
 function _lqRowBtns(nombre,tel,ramo,nro,presu){ var out=''; var wa=_waLink(tel,nombre,ramo,nro); out+=wa?(' <a href="'+wa+'" target="_blank" rel="noopener" style="display:inline-block;background:#25d366;color:#04310f;text-decoration:none;border-radius:8px;padding:5px 12px;font-size:13.5px;font-weight:700;margin:3px 3px 3px 8px;vertical-align:middle">📱 WhatsApp</a>'):' <span class="muted" style="font-size:12px">sin tel.</span>'; if(presu)out+=' <button class="lq-presu" data-cli="'+_esc(String(nombre).replace(/"/g,'&quot;'))+'" data-nro="'+_esc(String(nro==null?'':nro).replace(/"/g,'&quot;'))+'" style="display:inline-block;background:#15223f;color:#fff;border:1px solid #3a4e78;border-radius:8px;padding:5px 12px;font-size:13.5px;font-weight:600;cursor:pointer;margin:3px;vertical-align:middle">🧮 Presupuesto</button>'; return out; }
 window._nuevoPresupuesto=function(cli,nro){ var tab=document.querySelector('.tab[data-t="compa"]'); if(tab)tab.click(); setTimeout(function(){ var as=document.getElementById('cmpAseg'); if(as){ as.value=cli; as.dispatchEvent(new Event('change',{bubbles:true})); } setTimeout(function(){ var pol=document.getElementById('cmpPol'); if(pol&&nro){ pol.value=String(nro); pol.dispatchEvent(new Event('change',{bubbles:true})); } },160); },60); };
+var _STOPQ={POLIZA:1,POLIZAS:1,LA:1,EL:1,DE:1,DEL:1,LOS:1,LAS:1,UN:1,UNA:1,PASAME:1,PASA:1,MANDAME:1,MANDA:1,TRAEME:1,TRAE:1,ENVIAME:1,ENVIA:1,QUIERO:1,NECESITO:1,DAME:1,PDF:1,ARCHIVO:1,DOCUMENTO:1,CLIENTE:1,POR:1,FAVOR:1,COMPROBANTE:1,CERTIFICADO:1,PARA:1,CON:1,QUE:1};
+function _contactoFromQuery(q){ try{
+  var terms=_nnG(q).split(/\s+/).filter(function(t){return t.length>=3 && !_STOPQ[t];});
+  if(!terms.length)return null;
+  var best=null,bestScore=0;
+  function consider(name,doc){ if(!name)return; var nt=_nnG(name).split(/\s+/); var sc=0; terms.forEach(function(t){ if(nt.indexOf(t)>=0)sc++; }); if(sc>bestScore){bestScore=sc;best={nombre:name,doc:doc||''};} }
+  (DATA.polizas||[]).forEach(function(p){consider(p.cli,p.doc);});
+  (DATA.art||[]).forEach(function(a){consider(a.cli,a.doc);});
+  (DATA.retiro||[]).forEach(function(r){consider(r.cli,r.doc);});
+  if(!best||bestScore<1)return null;
+  var C=(DATA&&DATA.contactos)||{}; var dd=best.doc?String(best.doc).replace(/\D/g,''):''; var nk='N'+_nnG(best.nombre).replace(/ /g,'');
+  var tel=(dd&&C['D'+dd]&&C['D'+dd].tel)||(C[nk]&&C[nk].tel)||(window._telExtra&&window._telExtra(best.nombre))||'';
+  var mail=(dd&&C['D'+dd]&&C['D'+dd].email)||(C[nk]&&C[nk].email)||'';
+  if(!mail){ var P=DATA.polizas||[]; for(var i=0;i<P.length;i++){ if(P[i].cli===best.nombre&&P[i].email){mail=P[i].email;break;} } }
+  best.tel=tel; best.mail=mail; return best;
+}catch(e){return null;} }
+function _waSendLink(tel,nombre,link){ var ph=String(tel||'').replace(/\D/g,''); if(!ph)return ''; if(ph.indexOf('54')!==0)ph='549'+ph.replace(/^0/,''); var msg='Hola '+_titulo(nombre)+', ¿cómo andás? Te envío tu póliza 📄 La podés descargar acá: '+link+' — cualquier consulta quedo a disposición. Saludos, Grupo Lafuente.'; return 'https://wa.me/'+ph+'?text='+encodeURIComponent(msg); }
+function _mailSendLink(mail,nombre,link){ if(!mail)return ''; var body='Hola '+_titulo(nombre)+',\n\nTe envío tu póliza. La podés descargar en el siguiente enlace:\n'+link+'\n\nCualquier consulta quedo a disposición.\nSaludos,\nGrupo Lafuente'; return 'mailto:'+mail+'?subject='+encodeURIComponent('Tu póliza - Grupo Lafuente')+'&body='+encodeURIComponent(body); }
 function localQuery(q){
  try{
   var ql=' '+String(q||'').toLowerCase()+' ';
@@ -2426,8 +2444,18 @@ window.iaSend=async function(text){
     var dr=await bk({action:'driveFind',q:q},25000);
     if(dr&&dr.ok){
       if(dr.files&&dr.files.length){
-        var items=dr.files.map(function(f){return '<div style="margin:5px 0"><a href="'+_esc(f.url)+'" target="_blank" rel="noopener" style="color:#7ab8ff;text-decoration:none">📄 '+_esc(f.name)+'</a></div>';}).join('');
-        wait.innerHTML='Encontré '+dr.files.length+' archivo'+(dr.files.length!==1?'s':'')+' en la carpeta. Tocá para abrir y reenviárselo al cliente:<br>'+items+(dr.count>dr.files.length?('<div class="muted" style="margin-top:6px;font-size:11px">Hay '+dr.count+' en total; afiná con el nº de póliza o el apellido.</div>'):'');
+        var _cto=_contactoFromQuery(q);
+        var items=dr.files.map(function(f){
+          var send='';
+          if(_cto){
+            var wl=_cto.tel?_waSendLink(_cto.tel,_cto.nombre,f.url):''; var ml=_cto.mail?_mailSendLink(_cto.mail,_cto.nombre,f.url):'';
+            if(wl)send+='<a href="'+_esc(wl)+'" target="_blank" rel="noopener" style="display:inline-block;background:#25d366;color:#04310f;text-decoration:none;border-radius:8px;padding:4px 11px;font-size:12.5px;font-weight:700;margin:3px 3px 0 0">📱 WhatsApp</a>';
+            if(ml)send+='<a href="'+_esc(ml)+'" style="display:inline-block;background:#2f5fd0;color:#fff;text-decoration:none;border-radius:8px;padding:4px 11px;font-size:12.5px;font-weight:700;margin:3px 3px 0 0">✉️ Email</a>';
+            if(!wl&&!ml)send='<span class="muted" style="font-size:11px">(sin tel. ni mail cargado)</span>';
+          }
+          return '<div style="margin:8px 0;padding-bottom:7px;border-bottom:1px solid #1d2a44"><a href="'+_esc(f.url)+'" target="_blank" rel="noopener" style="color:#7ab8ff;text-decoration:none">📄 '+_esc(f.name)+'</a>'+(send?('<div style="margin-top:4px">Enviar a '+_esc(_titulo(_cto.nombre))+': '+send+'</div>'):'')+'</div>';
+        }).join('');
+        wait.innerHTML='Encontré '+dr.files.length+' archivo'+(dr.files.length!==1?'s':'')+' en la carpeta'+(_cto?(' de <b>'+_esc(_titulo(_cto.nombre))+'</b>'):'')+'. Abrilo, o enviáselo directo:<br>'+items+(dr.count>dr.files.length?('<div class="muted" style="margin-top:6px;font-size:11px">Hay '+dr.count+' en total; afiná con el nº de póliza o el apellido.</div>'):'');
       } else {
         wait.innerHTML='No encontré ninguna póliza con eso en la carpeta. Probá con el número de póliza o el apellido tal como está escrito en el nombre del archivo.';
       }
