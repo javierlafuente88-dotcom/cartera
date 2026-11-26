@@ -2432,10 +2432,12 @@ function localQuery(q){
 async function _sendMail(fid,to,nombre,btn){
   try{
     if(!fid){ alert('No tengo el id del archivo. Actualizá el dashboard (Ctrl+Shift+R).'); return; }
-    if(!confirm('¿Enviar la póliza por email a '+nombre+' ('+to+')?')) return;
+    var subject='Tu póliza - Grupo Lafuente';
+    var body='Hola '+nombre+',\n\nTe adjuntamos tu póliza en este correo. Cualquier consulta quedamos a disposición.\n\nSaludos,\nGrupo Lafuente';
+    if(!confirm('Se va a enviar este email a '+nombre+' ('+to+'):\n\n──────────\nAsunto: '+subject+'\n\n'+body+'\n(+ la póliza adjunta en PDF)\n──────────\n\n¿Lo mando?')) return;
     var orig=btn.innerHTML; btn.innerHTML='Enviando…'; btn.disabled=true;
     if(!BK_OK)await bk({action:'ping'});
-    var r=await bk({action:'sendPoliza',fileId:fid,to:to,nombre:nombre},40000);
+    var r=await bk({action:'sendPoliza',fileId:fid,to:to,nombre:nombre,subject:subject,body:body},40000);
     if(r&&r.ok){ btn.innerHTML='✓ Enviado a '+to; btn.style.background='#1f9d57'; }
     else { btn.innerHTML=orig; btn.disabled=false; alert('No se pudo enviar ('+((r&&r.error)||'sin conexión')+').'); }
   }catch(e){ try{btn.disabled=false;}catch(_e){} }
