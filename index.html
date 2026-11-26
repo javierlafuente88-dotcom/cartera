@@ -2429,20 +2429,40 @@ function localQuery(q){
   return head+' · total cuota '+_m2(totalCuota)+'/mes:<br>'+rows+extra;
  }catch(e){ return null; }
 }
-async function _sendMail(fid,to,nombre,btn){
+function _openMailEditor(fid,to,nombre,btn){
   try{
     if(!fid){ alert('No tengo el id del archivo. Actualizá el dashboard (Ctrl+Shift+R).'); return; }
+    if(btn._editorOpen)return; btn._editorOpen=1;
     var subject='Tu póliza - Grupo Lafuente';
     var body='Hola '+nombre+',\n\nTe adjuntamos tu póliza en este correo. Cualquier consulta quedamos a disposición.\n\nSaludos,\nGrupo Lafuente';
-    if(!confirm('Se va a enviar este email a '+nombre+' ('+to+'):\n\n──────────\nAsunto: '+subject+'\n\n'+body+'\n(+ la póliza adjunta en PDF)\n──────────\n\n¿Lo mando?')) return;
-    var orig=btn.innerHTML; btn.innerHTML='Enviando…'; btn.disabled=true;
-    if(!BK_OK)await bk({action:'ping'});
-    var r=await bk({action:'sendPoliza',fileId:fid,to:to,nombre:nombre,subject:subject,body:body},40000);
-    if(r&&r.ok){ btn.innerHTML='✓ Enviado a '+to; btn.style.background='#1f9d57'; }
-    else { btn.innerHTML=orig; btn.disabled=false; alert('No se pudo enviar ('+((r&&r.error)||'sin conexión')+').'); }
-  }catch(e){ try{btn.disabled=false;}catch(_e){} }
+    var wrap=document.createElement('div');
+    wrap.style.cssText='margin-top:8px;padding:11px;background:#0e1830;border:1px solid #2c416e;border-radius:10px';
+    wrap.innerHTML=
+      '<div style="font-size:12px;color:#9fb0cc;margin-bottom:7px">✉️ Email a <b>'+_esc(nombre)+'</b> <span class="muted">('+_esc(to)+')</span> — editá lo que quieras y tocá Enviar:</div>'+
+      '<label class="muted" style="font-size:11px">Asunto</label>'+
+      '<input class="me-subj" value="'+_esc(subject)+'" style="width:100%;box-sizing:border-box;background:#13203a;border:1px solid #2c416e;color:#e8eefc;border-radius:7px;padding:7px 9px;font-size:13px;margin:2px 0 8px">'+
+      '<label class="muted" style="font-size:11px">Mensaje</label>'+
+      '<textarea class="me-body" rows="7" style="width:100%;box-sizing:border-box;background:#13203a;border:1px solid #2c416e;color:#e8eefc;border-radius:7px;padding:7px 9px;font-size:13px;resize:vertical;margin-top:2px">'+_esc(body)+'</textarea>'+
+      '<div style="font-size:11px;color:#8a94a4;margin:4px 0 9px">📎 La póliza en PDF se adjunta automáticamente.</div>'+
+      '<button class="me-send" style="background:#1f9d57;color:#fff;border:0;border-radius:8px;padding:7px 15px;font-size:13px;font-weight:700;cursor:pointer;margin-right:6px">Enviar</button>'+
+      '<button class="me-cancel" style="background:#2a3a5c;color:#cfe3ff;border:0;border-radius:8px;padding:7px 15px;font-size:13px;cursor:pointer">Cancelar</button>'+
+      '<span class="me-status" style="margin-left:8px;font-size:12px"></span>';
+    btn.parentNode.appendChild(wrap);
+    btn.style.display='none';
+    wrap.querySelector('.me-cancel').onclick=function(){ wrap.remove(); btn.style.display=''; btn._editorOpen=0; };
+    wrap.querySelector('.me-send').onclick=async function(){
+      var sbx=wrap.querySelector('.me-subj').value.trim()||'Tu póliza - Grupo Lafuente';
+      var bdx=wrap.querySelector('.me-body').value;
+      var st=wrap.querySelector('.me-status'); var sendBtn=this;
+      sendBtn.disabled=true; sendBtn.textContent='Enviando…'; st.textContent='';
+      if(!BK_OK)await bk({action:'ping'});
+      var r=await bk({action:'sendPoliza',fileId:fid,to:to,nombre:nombre,subject:sbx,body:bdx},40000);
+      if(r&&r.ok){ wrap.innerHTML='<span style="color:#5fd98a;font-size:13px;font-weight:600">✓ Email enviado a '+_esc(to)+'</span>'; }
+      else { sendBtn.disabled=false; sendBtn.textContent='Enviar'; st.style.color='#ff8585'; st.textContent='⚠ No se pudo enviar ('+((r&&r.error)||'sin conexión')+')'; }
+    };
+  }catch(e){ try{btn._editorOpen=0;}catch(_e){} }
 }
-window._sendMail=_sendMail;
+window._openMailEditor=_openMailEditor;
 window.iaSend=async function(text){
   var inp=document.getElementById('iaInp');
   var q=(text!==undefined?text:(inp?inp.value:'')).trim(); if(!q)return;
@@ -2507,7 +2527,7 @@ window.iaSend=async function(text){
 var CHIPS=['¿Qué vence esta semana?','Resumime la cartera','Pasame la póliza de ','Redactá un WhatsApp de renovación'];
 window.iaInit=function(){
   if(window._iaReady)return; window._iaReady=true;
-  var _im=document.getElementById('iaMsgs'); if(_im&&!_im._lqWired){_im._lqWired=1;_im.addEventListener('click',function(e){var b=e.target.closest('.lq-presu'); if(b){e.preventDefault();window._nuevoPresupuesto(b.getAttribute('data-cli'),b.getAttribute('data-nro'));return;} var sb=e.target.closest('.ia-sendmail'); if(sb){e.preventDefault();_sendMail(sb.getAttribute('data-fid'),sb.getAttribute('data-to'),sb.getAttribute('data-nombre'),sb);}});}
+  var _im=document.getElementById('iaMsgs'); if(_im&&!_im._lqWired){_im._lqWired=1;_im.addEventListener('click',function(e){var b=e.target.closest('.lq-presu'); if(b){e.preventDefault();window._nuevoPresupuesto(b.getAttribute('data-cli'),b.getAttribute('data-nro'));return;} var sb=e.target.closest('.ia-sendmail'); if(sb){e.preventDefault();_openMailEditor(sb.getAttribute('data-fid'),sb.getAttribute('data-to'),sb.getAttribute('data-nombre'),sb);}});}
   var ch=document.getElementById('iaChips');
   if(ch){ ch.innerHTML=CHIPS.map(function(c){return '<span class="chip-ia" style="background:#13203a;border:1px solid #2c416e;color:#bcd0ff;border-radius:999px;padding:6px 10px;font-size:12.5px;cursor:pointer">'+_esc(c)+'</span>';}).join('');
     [].forEach.call(ch.querySelectorAll('.chip-ia'),function(el){ el.onclick=function(){ var t=el.textContent; if(/\s$/.test(t)){ var ip=document.getElementById('iaInp'); if(ip){ip.value=t; ip.focus();} } else { iaSend(t); } }; }); }
